@@ -7,7 +7,7 @@ import { PlusCircle, Edit, Trash2, Check, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 export default function ChatList() {
   const router = useRouter();
@@ -69,9 +69,7 @@ export default function ChatList() {
   };
 
   const saveTitle = async (id: string) => {
-    if (!editTitle.trim()) {
-      return;
-    }
+    if (!editTitle.trim()) return;
 
     try {
       const updatedChat = await updateChat({
@@ -92,35 +90,45 @@ export default function ChatList() {
   };
 
   if (loading) {
-    return <div className="p-4">Loading chats...</div>;
+    return (
+      <div className="h-full flex flex-col">
+        <div className="p-4 border-b">Loading chats...</div>
+      </div>
+    );
   }
 
   if (error) {
-    return <div className="p-4 text-red-500">{error}</div>;
+    return (
+      <div className="h-full flex flex-col">
+        <div className="p-4 border-b text-destructive">{error}</div>
+      </div>
+    );
   }
 
   return (
-    <div className="h-full flex flex-col bg-background border-r">
-      <div className="p-4 border-b">
-        <Button
-          onClick={handleCreateChat}
-          className="w-full"
-          size="sm"
-        >
-          <PlusCircle className="mr-2 h-4 w-4" />
-          New Chat
-        </Button>
+    <div className="h-full flex flex-col">
+      <div className="shrink-0 p-4 border-b space-y-4">
+        <div className="flex gap-2">
+          <Button
+            onClick={handleCreateChat}
+            className="flex-1"
+            size="sm"
+          >
+            <PlusCircle className="mr-2 h-4 w-4" />
+            New Chat
+          </Button>
+        </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        {chats.length === 0 ? (
-          <div className="p-4 text-center text-muted-foreground">
-            No chats yet. Create your first chat!
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {chats.map((chat) => (
-              <Card key={chat.id} className="rounded-none border-0 shadow-none">
+      <ScrollArea className="flex-1 h-[calc(100vh-5rem)]">
+        <div className="divide-y divide-border">
+          {chats.length === 0 ? (
+            <div className="p-4 text-center text-muted-foreground">
+              No chats yet. Create your first chat!
+            </div>
+          ) : (
+            chats.map((chat) => (
+              <div key={chat.id}>
                 {editingId === chat.id ? (
                   <div className="p-4 flex items-center gap-2">
                     <Input
@@ -140,7 +148,7 @@ export default function ChatList() {
                       onClick={() => saveTitle(chat.id)}
                       variant="ghost"
                       size="icon"
-                      className="text-green-500 hover:text-green-600 hover:bg-green-50"
+                      className="text-green-500 hover:text-green-600"
                     >
                       <Check className="h-4 w-4" />
                     </Button>
@@ -148,57 +156,47 @@ export default function ChatList() {
                       onClick={cancelEditing}
                       variant="ghost"
                       size="icon"
-                      className="text-gray-500 hover:text-gray-600 hover:bg-gray-50"
                     >
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
                 ) : (
-                  <CardContent 
-                    className="p-0 cursor-pointer hover:bg-accent/50"
-                    onClick={() => router.push(`/chat/${chat.id}`)}
-                  >
-                    <div className="p-4 flex items-center justify-between">
-                      <div className="flex-1 min-w-0">
+                  <div className="group p-4 hover:bg-accent/50">
+                    <div className="flex items-center justify-between">
+                      <div 
+                        className="flex-1 min-w-0 cursor-pointer"
+                        onClick={() => router.push(`/chat/${chat.id}`)}
+                      >
                         <h3 className="font-medium truncate">{chat.title}</h3>
                         <p className="text-sm text-muted-foreground truncate">
                           {new Date(chat.updatedAt).toLocaleString()}
                         </p>
                       </div>
-                      <div className="flex items-center gap-1 ml-2">
+                      <div className="flex items-center gap-1 ml-2 opacity-0 group-hover:opacity-100 transition-opacity">
                         <Button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            startEditing(chat);
-                          }}
+                          onClick={() => startEditing(chat)}
                           variant="ghost"
                           size="icon"
-                          className="text-muted-foreground hover:text-primary"
                         >
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleDeleteChat(chat.id);
-                          }}
+                          onClick={() => handleDeleteChat(chat.id)}
                           variant="ghost"
                           size="icon"
-                          className="text-muted-foreground hover:text-destructive"
+                          className="text-destructive"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
-                  </CardContent>
+                  </div>
                 )}
-              </Card>
-            ))}
-          </div>
-        )}
-      </div>
+              </div>
+            ))
+          )}
+        </div>
+      </ScrollArea>
     </div>
   );
 } 

@@ -1,0 +1,14 @@
+---
+description: When adding new feature or new objects
+globs: 
+alwaysApply: false
+---
+
+# Your rule content
+
+- Keep the app directory clean and organized by feature/route
+- Use the components directory for reusable UI components
+- Place utility functions and shared logic in the lib directory
+- Keep API routes in the app/api directory
+- Use proper TypeScript types for all components and functions
+- Keep track of all the types in /types folder
