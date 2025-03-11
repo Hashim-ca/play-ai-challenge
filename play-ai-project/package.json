@@ -9,6 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.462.0",
+    "@aws-sdk/s3-request-presigner": "^3.758.0",
     "@radix-ui/react-alert-dialog": "^1.1.6",
     "@radix-ui/react-dropdown-menu": "^2.1.6",
     "@radix-ui/react-scroll-area": "^1.2.3",
@@ -20,6 +22,7 @@
     "next": "15.3.0-canary.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "react-pdf": "^7.5.1",
     "react-resizable-panels": "^2.1.7",
     "tailwind-merge": "^3.0.2",
     "tailwindcss-animate": "^1.0.7",

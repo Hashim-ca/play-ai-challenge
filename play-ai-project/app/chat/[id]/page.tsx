@@ -3,22 +3,22 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { fetchChatById, updateChat } from '@/lib/chatService';
-import { Chat } from '@/lib/types/chat';
-import { Edit, Check, X, Send } from 'lucide-react';
+import { Chat as ChatType } from '@/lib/types/chat';
+import { Edit, Check, X } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardHeader, CardContent, CardFooter } from "@/components/ui/card";
+import { Card, CardHeader } from "@/components/ui/card";
+import { Chat } from '@/app/components/Chat';
 
 export default function ChatPage() {
   const params = useParams();
   const chatId = params.id as string;
   
-  const [chat, setChat] = useState<Chat | null>(null);
+  const [chat, setChat] = useState<ChatType | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
-  const [message, setMessage] = useState('');
 
   useEffect(() => {
     const loadChat = async () => {
@@ -70,10 +70,8 @@ export default function ChatPage() {
     }
   };
 
-  const handleSendMessage = () => {
-    // TODO: Implement message sending
-    console.log('Sending message:', message);
-    setMessage('');
+  const handleChatUpdate = (updatedChat: ChatType) => {
+    setChat(updatedChat);
   };
 
   if (loading) {
@@ -134,36 +132,9 @@ export default function ChatPage() {
         )}
       </CardHeader>
       
-      <CardContent className="flex-1 overflow-y-auto p-4">
-        {chat.parsedContent ? (
-          <div className="whitespace-pre-wrap">{chat.parsedContent}</div>
-        ) : (
-          <div className="text-center text-muted-foreground mt-10">
-            No content available for this chat.
-          </div>
-        )}
-      </CardContent>
-      
-      <CardFooter className="border-t p-4">
-        <form 
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleSendMessage();
-          }}
-          className="flex items-center gap-2 w-full"
-        >
-          <Input
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1"
-          />
-          <Button type="submit" disabled={!message.trim()}>
-            <Send className="h-4 w-4 mr-2" />
-            Send
-          </Button>
-        </form>
-      </CardFooter>
+      <div className="flex-1 overflow-hidden">
+        <Chat chat={chat} onChatUpdate={handleChatUpdate} />
+      </div>
     </Card>
   );
 } 
