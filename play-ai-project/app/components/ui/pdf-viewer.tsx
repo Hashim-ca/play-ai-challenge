@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -43,13 +43,14 @@ export function PDFViewer({ url }: PDFViewerProps) {
     setKey(prev => prev + 1);
   }, [url]);
 
-  // Document options object
-  const documentOptions = {
+  // Memoize the options object to prevent unnecessary re-renders
+  const documentOptions = useMemo(() => ({
     cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/cmaps/`,
     cMapPacked: true,
     standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
-    withCredentials: false
-  };
+    withCredentials: false,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);

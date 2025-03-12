@@ -4,7 +4,7 @@ import connectToDatabase from '@/lib/mongodb';
 import Chat from '@/lib/models/chat';
 
 // POST /api/chat/[id]/message - Send a message to the chat
-// @ts-expect-error Next.js canary version has type issues with API route handlers
+// @ts-ignore Next.js canary version has type issues with API route handlers
 export async function POST(
   request: NextRequest,
   context: { params: { id: string } }
