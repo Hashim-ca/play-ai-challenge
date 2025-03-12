@@ -7,11 +7,11 @@ import Chat from '@/lib/models/chat';
 // @ts-ignore Next.js canary version has type issues with API route handlers
 export async function POST(
   request: NextRequest,
-  context: any
+  context: { params: { id: string } }
 ) {
   try {
-    // Safe access to params
-    const id = context.params.id;
+    // Safe access to params - await params to fix Next.js warning
+    const { id } = await context.params;
     const { message } = await request.json();
     
     if (!message) {
@@ -33,13 +33,33 @@ export async function POST(
       );
     }
     
-    // In a real implementation, you would:
-    // 1. Process the PDF content
-    // 2. Send the user message to an AI service
-    // 3. Get the AI response
+    // Check if we have parsed PDF content to use in the response
+    let parsedPdf = null;
+    if (chat.parsedContent) {
+      try {
+        parsedPdf = JSON.parse(chat.parsedContent);
+      } catch (e) {
+        console.error('Error parsing chat.parsedContent:', e);
+      }
+    }
     
-    // For now, we'll just simulate a response
-    const simulatedResponse = `This is a simulated response to: "${message}"`;
+    // In a real implementation, you would send the user message to an AI service
+    // along with the parsed PDF content
+    
+    // For now, we'll generate a response with PDF info if available
+    let simulatedResponse = '';
+    if (parsedPdf) {
+      simulatedResponse = `This is a simulated response to: "${message}" with PDF data from Reducto API.`;
+      // Add job ID if available
+      if (parsedPdf.job_id) {
+        simulatedResponse += ` (Job ID: ${parsedPdf.job_id})`;
+      }
+    } else {
+      simulatedResponse = `This is a simulated response to: "${message}"`;
+      if (chat.pdfStorageUrl) {
+        simulatedResponse += " (PDF is still being processed by Reducto API)";
+      }
+    }
     
     // Create the user message
     const userMessageId = uuidv4();

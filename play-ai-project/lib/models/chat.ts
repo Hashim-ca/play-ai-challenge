@@ -15,7 +15,7 @@ const ChatSchema = new Schema(
     title: { type: String, required: true },
     pdfStorageUrl: { type: String },
     pdfFileName: { type: String },
-    parsedContent: { type: String },
+    parsedContent: { type: String, maxLength: 16777215 }, // Use String with large max size to store JSON
     audioInfo: { type: String },
     messages: [MessageSchema],
   },

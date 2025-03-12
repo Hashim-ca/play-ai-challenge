@@ -43,6 +43,32 @@ export async function POST(request: NextRequest) {
     
     await newChat.save();
     
+    // If a PDF was uploaded, trigger processing with Reducto API
+    if (body.pdfStorageUrl) {
+      try {
+        // Use absolute URL for internal API call
+        const url = new URL('/api/process-pdf', request.nextUrl.origin);
+        
+        // Fire and forget - don't await the response
+        fetch(url.toString(), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            chatId: body.id,
+            pdfStorageUrl: body.pdfStorageUrl,
+          }),
+        }).catch(err => {
+          console.error('Error triggering PDF processing:', err);
+          // Continue execution - non-blocking
+        });
+      } catch (processingError) {
+        // Log error but don't fail chat creation
+        console.error('Error initiating PDF processing:', processingError);
+      }
+    }
+    
     return NextResponse.json(newChat, { status: 201 });
   } catch (error) {
     console.error('Error creating chat:', error);
