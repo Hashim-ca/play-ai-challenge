@@ -8,6 +8,7 @@ import { ChevronLeft, ChevronRight, RefreshCw, ZoomIn, ZoomOut, RotateCw, Eye, E
 import { Skeleton } from "@/components/ui/skeleton"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { BoundingBoxOverlay } from "./bounding-box-overlay"
+import { TextToSpeech } from "./text-to-speech"
 
 // Set worker source for react-pdf
 if (typeof window !== "undefined") {
@@ -306,6 +307,7 @@ export function PDFViewer({ url, chatId, isSplitView }: PDFViewerProps) {
                         <div className="bg-muted rounded-lg p-4">
                           <h3 className="text-sm font-medium mb-2">Selected Text</h3>
                           <p className="whitespace-pre-wrap">{selectedText}</p>
+                          <TextToSpeech text={selectedText} />
                         </div>
                       </div>
                     ) : (
