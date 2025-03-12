@@ -21,6 +21,7 @@ export function PDFViewer({ url }: PDFViewerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [key, setKey] = useState(0); // For forcing remount
+  const [useWorker, setUseWorker] = useState(true);
   
   // Try alternative worker sources if needed
   useEffect(() => {
@@ -43,6 +44,10 @@ export function PDFViewer({ url }: PDFViewerProps) {
           currentSourceIndex++;
           tryWorkerSource();
         }
+      } else {
+        // If all worker sources fail, disable the worker
+        console.warn('All worker sources failed, disabling worker');
+        setUseWorker(false);
       }
     };
     
