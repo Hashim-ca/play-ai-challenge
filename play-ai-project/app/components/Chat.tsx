@@ -313,45 +313,8 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
               <TabsContent value="split" className="flex-1 overflow-hidden m-0 border-0 h-full">
                 <div className="flex flex-1 h-full overflow-hidden">
                   {/* PDF Viewer */}
-                  <div className="w-1/2 border-r h-full overflow-hidden">
-                    <PDFViewer url={pdfUrl || ""} />
-                  </div>
-
-                  {/* Chat Messages */}
-                  <div className="w-1/2 flex flex-col h-full overflow-hidden">
-                    <ScrollArea className="flex-1">
-                      <div className="p-4">
-                        {chat.messages && chat.messages.length > 0 ? (
-                          <div className="space-y-4">
-                            {chat.messages.map((msg) => (
-                              <div
-                                key={msg.id}
-                                className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
-                              >
-                                <div
-                                  className={`max-w-[85%] p-3 rounded-lg ${
-                                    msg.role === "user" ? "bg-primary text-primary-foreground ml-auto" : "bg-muted"
-                                  }`}
-                                >
-                                  <div className="flex items-center gap-2 mb-1">
-                                    {msg.role === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
-                                    <span className="text-xs font-medium">
-                                      {msg.role === "user" ? "You" : "AI Assistant"}
-                                    </span>
-                                  </div>
-                                  <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
-                                </div>
-                              </div>
-                            ))}
-                            <div ref={messagesEndRef} />
-                          </div>
-                        ) : (
-                          <div className="h-full flex items-center justify-center text-muted-foreground">
-                            <p>Your messages will appear here</p>
-                          </div>
-                        )}
-                      </div>
-                    </ScrollArea>
+                  <div className="w-full h-full overflow-hidden">
+                    <PDFViewer url={pdfUrl || ""} chatId={chat.id} isSplitView={true} />
                   </div>
                 </div>
               </TabsContent>
@@ -390,9 +353,9 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
               </TabsContent>
 
               <TabsContent value="pdf" className="flex-1 overflow-hidden m-0 border-0">
-                <div className="h-full">
-                  <PDFViewer url={pdfUrl || ""} />
-                </div>
+                {pdfUrl && (
+                  <PDFViewer url={pdfUrl} chatId={chat.id} />
+                )}
               </TabsContent>
             </Tabs>
           )}

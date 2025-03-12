@@ -4,20 +4,41 @@ import { useState, useEffect, useMemo } from "react"
 import { Document, Page, pdfjs } from "react-pdf"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { ChevronLeft, ChevronRight, RefreshCw, ZoomIn, ZoomOut, RotateCw } from "lucide-react"
+import { ChevronLeft, ChevronRight, RefreshCw, ZoomIn, ZoomOut, RotateCw, Eye, EyeOff } from "lucide-react"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { BoundingBoxOverlay } from "./bounding-box-overlay"
 
 // Set worker source for react-pdf
 if (typeof window !== "undefined") {
   pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
 }
 
-interface PDFViewerProps {
-  url: string
+interface ParsedContent {
+  result: {
+    chunks: Array<{
+      blocks: Array<{
+        type: string;
+        bbox: {
+          left: number;
+          top: number;
+          width: number;
+          height: number;
+          page: number;
+        };
+        content: string;
+      }>;
+    }>;
+  };
 }
 
-export function PDFViewer({ url }: PDFViewerProps) {
+interface PDFViewerProps {
+  url: string
+  chatId?: string
+  isSplitView?: boolean
+}
+
+export function PDFViewer({ url, chatId, isSplitView }: PDFViewerProps) {
   const [numPages, setNumPages] = useState<number | null>(null)
   const [pageNumber, setPageNumber] = useState(1)
   const [loading, setLoading] = useState(true)
@@ -26,6 +47,9 @@ export function PDFViewer({ url }: PDFViewerProps) {
   const [windowWidth, setWindowWidth] = useState(0)
   const [scale, setScale] = useState(1)
   const [rotation, setRotation] = useState(0)
+  const [parsedContent, setParsedContent] = useState<ParsedContent | null>(null)
+  const [showOverlay, setShowOverlay] = useState(true)
+  const [selectedText, setSelectedText] = useState<string | null>(null)
 
   // Set window width after mount
   useEffect(() => {
@@ -50,6 +74,31 @@ export function PDFViewer({ url }: PDFViewerProps) {
     // Force remount the Document component when URL changes
     setKey((prev) => prev + 1)
   }, [url])
+
+  // Fetch parsed content when chatId changes
+  useEffect(() => {
+    const fetchParsedContent = async () => {
+      if (!chatId) return;
+      
+      try {
+        console.log('Fetching parsed content for chatId:', chatId);
+        const response = await fetch(`/api/chat/${chatId}/parsed-content`);
+        if (!response.ok) {
+          throw new Error(`Error: ${response.status}`);
+        }
+        
+        const data = await response.json();
+        console.log('Received parsed content:', data);
+        if (data.success && data.parsedContent) {
+          setParsedContent(data.parsedContent);
+        }
+      } catch (err) {
+        console.error('Failed to fetch parsed content:', err);
+      }
+    };
+    
+    fetchParsedContent();
+  }, [chatId]);
 
   // Memoize the options object to prevent unnecessary re-renders
   const documentOptions = useMemo(
@@ -179,41 +228,97 @@ export function PDFViewer({ url }: PDFViewerProps) {
               <RotateCw className="h-4 w-4" />
               <span className="sr-only">Rotate</span>
             </Button>
+
+            {chatId && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowOverlay(prev => !prev)}
+                disabled={loading}
+                className="h-8 w-8 p-0"
+              >
+                {showOverlay ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
+                <span className="sr-only">Toggle overlay</span>
+              </Button>
+            )}
           </div>
         </div>
 
-        <ScrollArea className="flex-1 h-full">
-          <div className="flex flex-col items-center p-4">
-            <Document
-              key={key}
-              file={url}
-              onLoadSuccess={onDocumentLoadSuccess}
-              onLoadError={onDocumentLoadError}
-              loading={
-                <div className="flex items-center justify-center p-8">
-                  <div className="flex flex-col items-center">
-                    <Skeleton className="h-40 w-32 mb-4" />
-                    <Skeleton className="h-4 w-24 mb-2" />
-                    <Skeleton className="h-4 w-16" />
-                  </div>
-                </div>
-              }
-              className="max-w-full"
-              options={documentOptions}
-            >
-              {!loading && numPages ? (
-                <Page
-                  pageNumber={pageNumber}
-                  renderTextLayer={false}
-                  renderAnnotationLayer={false}
+        <div className="flex-1 overflow-hidden">
+          <div className="flex h-full">
+            <ScrollArea className={`${isSplitView ? 'w-2/3' : 'w-full'} h-full border-r`}>
+              <div className="flex flex-col items-center p-4 min-h-full">
+                <Document
+                  key={key}
+                  file={url}
+                  onLoadSuccess={onDocumentLoadSuccess}
+                  onLoadError={onDocumentLoadError}
+                  loading={
+                    <div className="flex items-center justify-center p-8">
+                      <div className="flex flex-col items-center">
+                        <Skeleton className="h-40 w-32 mb-4" />
+                        <Skeleton className="h-4 w-24 mb-2" />
+                        <Skeleton className="h-4 w-16" />
+                      </div>
+                    </div>
+                  }
                   className="max-w-full"
-                  width={windowWidth > 768 ? Math.min(600 * scale, windowWidth - 48) : (windowWidth - 48) * scale}
-                  rotate={rotation}
-                />
-              ) : null}
-            </Document>
+                  options={documentOptions}
+                >
+                  {!loading && numPages && (
+                    <div className="flex flex-col gap-4">
+                      {Array.from(new Array(numPages), (el, index) => (
+                        <div key={`page_${index + 1}`} className="relative">
+                          <Page
+                            pageNumber={index + 1}
+                            renderTextLayer={false}
+                            renderAnnotationLayer={false}
+                            className="max-w-full"
+                            width={windowWidth > 768 ? Math.min(600 * scale, windowWidth - 48) : (windowWidth - 48) * scale}
+                            rotate={rotation}
+                          />
+                          {showOverlay && parsedContent && chatId && (
+                            <BoundingBoxOverlay
+                              blocks={parsedContent.result.chunks.flatMap((chunk: { blocks: Array<{ type: string; bbox: { left: number; top: number; width: number; height: number; page: number; }; content: string; }> }) => chunk.blocks)}
+                              currentPage={index + 1}
+                              rotation={rotation}
+                              onBlockClick={isSplitView ? setSelectedText : undefined}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Document>
+              </div>
+            </ScrollArea>
+
+            {isSplitView && (
+              <div className="w-1/3 h-full flex flex-col">
+                <ScrollArea className="flex-1">
+                  <div className="p-4">
+                    {selectedText ? (
+                      <div className="prose prose-sm max-w-none">
+                        <div className="bg-muted rounded-lg p-4">
+                          <h3 className="text-sm font-medium mb-2">Selected Text</h3>
+                          <p className="whitespace-pre-wrap">{selectedText}</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-center h-full text-muted-foreground">
+                        <p>Click on any highlighted text to view its content</p>
+                      </div>
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            )}
           </div>
-        </ScrollArea>
+        </div>
       </CardContent>
     </Card>
   )
