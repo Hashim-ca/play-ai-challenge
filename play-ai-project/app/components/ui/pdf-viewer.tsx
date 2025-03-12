@@ -307,7 +307,10 @@ export function PDFViewer({ url, chatId, isSplitView }: PDFViewerProps) {
                         <div className="bg-muted rounded-lg p-4">
                           <h3 className="text-sm font-medium mb-2">Selected Text</h3>
                           <p className="whitespace-pre-wrap">{selectedText}</p>
-                          <TextToSpeech text={selectedText} />
+                          <TextToSpeech 
+                            text={selectedText} 
+                            fullText={parsedContent ? parsedContent.result.chunks.flatMap(chunk => chunk.blocks.map(block => block.content)).join("\n") : null}
+                          />
                         </div>
                       </div>
                     ) : (

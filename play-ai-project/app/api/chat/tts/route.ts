@@ -43,7 +43,7 @@ export const POST = async (req: NextRequest) => {
     };
 
     // Fetch from PlayDialog TTS API
-    const response = await fetch('https://api.play.ai/api/v1/tts/stream', options);
+    const response = await fetch('https://api.play.ai/api/v1/tts/stream', options as RequestInit);
     
     if (!response.ok) {
       console.error('PlayDialog API error:', response.status);
