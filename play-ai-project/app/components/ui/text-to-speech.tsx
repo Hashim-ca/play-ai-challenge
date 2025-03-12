@@ -1,13 +1,20 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Play, Pause, Volume2, VolumeX } from "lucide-react"
+import { Play, Pause, Volume2, VolumeX, ListMusic } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
 interface TextToSpeechProps {
   text: string | null
   apiKey?: string
   fullText?: string | null
+}
+
+interface QueueItem {
+  text: string
+  isFullText: boolean
+  id: string  // Add unique ID for each queue item
+  addedAt: number  // Add timestamp for sorting
 }
 
 export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
@@ -19,18 +26,15 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
   // Add a ref to track the current selected text for cancellation purposes
   const currentTextRef = useRef<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  // AbortController for canceling in-flight requests
-  const abortControllerRef = useRef<AbortController | null>(null)
+  // Queue for audio requests
+  const [audioQueue, setAudioQueue] = useState<QueueItem[]>([])
+  const [queueProcessing, setQueueProcessing] = useState(false)
+  const [queueNotification, setQueueNotification] = useState<string | null>(null)
+  const [showQueueDetails, setShowQueueDetails] = useState(false)
   
   useEffect(() => {
     // Clean up audio on unmount
     return () => {
-      // Abort any in-progress requests
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-        abortControllerRef.current = null
-      }
-      
       // Clean up audio element and release memory
       if (audioRef.current) {
         audioRef.current.pause()
@@ -57,7 +61,7 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
     }
     
     // Safely clean up any existing audio
-    if (audioRef.current) {
+    if (audioRef.current && !isPlaying) {
       audioRef.current.pause()
       
       // Clear any previous audio blob URLs to prevent memory leaks
@@ -69,7 +73,54 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
       setIsPlaying(false)
       setIsPlayingFullText(false)
     }
-  }, [text, isLoading])
+  }, [text, isLoading, isPlaying])
+
+  // Process the audio queue
+  useEffect(() => {
+    let isMounted = true;
+    
+    const processQueue = async () => {
+      if (audioQueue.length > 0 && !queueProcessing && !isPlaying && isMounted) {
+        setQueueProcessing(true)
+        const nextItem = audioQueue[0]
+        
+        try {
+          await playAudio(nextItem.isFullText)
+          // Remove the processed item from the queue
+          if (isMounted) {
+            setAudioQueue(prev => prev.slice(1))
+          }
+        } catch (err) {
+          console.error('Error processing queue item:', err)
+          // Remove the failed item from the queue to prevent getting stuck
+          if (isMounted) {
+            setAudioQueue(prev => prev.slice(1))
+          }
+        } finally {
+          if (isMounted) {
+            setQueueProcessing(false)
+          }
+        }
+      }
+    }
+
+    processQueue()
+    
+    return () => {
+      isMounted = false;
+    }
+  }, [audioQueue, queueProcessing, isPlaying])
+
+  // Clear notification after delay
+  useEffect(() => {
+    if (queueNotification) {
+      const timer = setTimeout(() => {
+        setQueueNotification(null)
+      }, 2000)
+      
+      return () => clearTimeout(timer)
+    }
+  }, [queueNotification])
 
   const playAudio = async (playFullText: boolean = false) => {
     const contentToPlay = playFullText ? fullText : text
@@ -85,20 +136,10 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
       setError(null)
       setIsPlayingFullText(playFullText)
       
-      // Cancel any in-flight requests
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-      }
-      
-      // Create a new abort controller for this request
-      abortControllerRef.current = new AbortController()
-      const signal = abortControllerRef.current.signal
-      
       // Clean up any existing audio
       if (audioRef.current) {
         // Remove old event listeners to prevent memory leaks
         const oldAudio = audioRef.current
-        const clonedListeners = oldAudio.cloneNode(false) // Clone without listeners
         oldAudio.pause()
         
         if (oldAudio.src && oldAudio.src.startsWith('blob:')) {
@@ -115,38 +156,54 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
       audioRef.current.addEventListener('ended', () => {
         setIsPlaying(false)
         setIsPlayingFullText(false)
-      })
-      
-      audioRef.current.addEventListener('error', (e) => {
-        // Only show error if it's not due to intentional cancellation
-        if (!signal.aborted) {
-          console.error('Audio playback error:', e)
-          setError('Failed to play audio')
-          setIsPlaying(false)
-          setIsPlayingFullText(false)
-          setIsLoading(false)
+        // Process the next item in the queue immediately after current audio ends
+        if (audioQueue.length > 0) {
+          setTimeout(() => {
+            setQueueProcessing(false) // Ensure queue processing can start again
+          }, 100)
         }
       })
       
-      // Check if the request has been aborted or the text has changed
-      if (signal.aborted || currentTextRef.current !== contentToPlay) {
-        throw new Error('Request cancelled - selection changed')
-      }
+      audioRef.current.addEventListener('error', (e) => {
+        // Get detailed error information
+        let errorMessage = 'Failed to play audio';
+        
+        if (audioRef.current && audioRef.current.error) {
+          const audioError = audioRef.current.error;
+          
+          switch (audioError.code) {
+            case MediaError.MEDIA_ERR_ABORTED:
+              errorMessage = 'Playback aborted by the user';
+              break;
+            case MediaError.MEDIA_ERR_NETWORK:
+              errorMessage = 'Network error occurred while loading audio';
+              break;
+            case MediaError.MEDIA_ERR_DECODE:
+              errorMessage = 'Audio decoding error';
+              break;
+            case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+              errorMessage = 'Audio format not supported';
+              break;
+            default:
+              errorMessage = `Audio error: ${audioError.message || 'Unknown error'}`;
+          }
+        }
+        
+        console.error('Audio playback error:', errorMessage);
+        setError(errorMessage);
+        setIsPlaying(false);
+        setIsPlayingFullText(false);
+        setIsLoading(false);
+      })
       
-      // Create audio stream from API with abort signal
+      // Create audio stream from API
       const response = await fetch('/api/chat/tts', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ text: contentToPlay }),
-        signal, // Add the abort signal
       })
-      
-      // Check again if the request has been aborted or the text has changed
-      if (signal.aborted || currentTextRef.current !== contentToPlay) {
-        throw new Error('Request cancelled - selection changed')
-      }
       
       if (!response.ok) {
         throw new Error(`API Error: ${response.status}`)
@@ -154,11 +211,6 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
       
       // Get blob from response
       const blob = await response.blob()
-      
-      // Final check before playing
-      if (signal.aborted || currentTextRef.current !== contentToPlay) {
-        throw new Error('Request cancelled - selection changed')
-      }
       
       const url = URL.createObjectURL(blob)
       
@@ -179,13 +231,8 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
         setIsLoading(false)
       }
     } catch (err) {
-      // Don't show errors for intentional cancellations
-      if (err instanceof Error && err.message.includes('cancelled')) {
-        console.log('Request cancelled:', err.message)
-      } else {
-        console.error('Text-to-speech error:', err)
-        setError(err instanceof Error ? err.message : 'Failed to get audio')
-      }
+      console.error('Text-to-speech error:', err)
+      setError(err instanceof Error ? err.message : 'Failed to get audio')
       
       setIsPlaying(false)
       setIsPlayingFullText(false)
@@ -193,45 +240,56 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
     }
   }
 
+  const addToQueue = (playFullText: boolean = false) => {
+    const contentToAdd = playFullText ? fullText : text
+    
+    if (!contentToAdd) return
+    
+    // Create a unique ID for this queue item
+    const newItem: QueueItem = {
+      text: contentToAdd,
+      isFullText: playFullText,
+      id: Math.random().toString(36).substring(2, 9),
+      addedAt: Date.now()
+    }
+    
+    // Add to queue
+    setAudioQueue(prev => [...prev, newItem])
+    
+    // Show notification with queue position
+    const queuePosition = audioQueue.length + 1
+    setQueueNotification(`Added to queue (position #${queuePosition})`)
+    
+    // Show queue details for a few seconds
+    setShowQueueDetails(true)
+    setTimeout(() => {
+      setShowQueueDetails(false)
+    }, 5000)
+  }
+
   const togglePlay = async (playFullText: boolean = false) => {
     // If we're already loading, prevent multiple requests
     if (isLoading) {
-      // If user clicks same button during loading, cancel the request
-      if (abortControllerRef.current && !abortControllerRef.current.signal.aborted) {
-        abortControllerRef.current.abort()
-        setIsLoading(false)
-        setError(null)
-      }
       return
     }
     
-    // If we're already playing full text and trying to play selected text, or vice versa,
-    // we need to stop the current playback and start a new one
-    if ((isPlayingFullText && !playFullText) || (!isPlayingFullText && playFullText)) {
-      if (audioRef.current) {
-        audioRef.current.pause()
-      }
-      
-      // Cancel any in-flight requests
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort()
-      }
-      
-      await playAudio(playFullText)
-      return
-    }
-    
-    // If audio hasn't been loaded yet, or if it's a new selection
-    if (!audioRef.current || !audioRef.current.src) {
-      await playAudio(playFullText)
-      return
-    }
-    
-    // If we already have audio loaded and just need to play/pause
+    // If we're already playing, either pause or add to queue
     if (isPlaying) {
-      audioRef.current.pause()
-      setIsPlaying(false)
-    } else {
+      // If the user clicks the same button that's currently playing, pause it
+      if ((playFullText && isPlayingFullText) || (!playFullText && !isPlayingFullText)) {
+        if (audioRef.current) {
+          audioRef.current.pause()
+          setIsPlaying(false)
+        }
+      } else {
+        // If the user clicks a different button while audio is playing, add to queue
+        addToQueue(playFullText)
+      }
+      return
+    }
+    
+    // If there's already audio loaded and we're just resuming
+    if (audioRef.current && audioRef.current.src) {
       try {
         await audioRef.current.play()
         setIsPlaying(true)
@@ -239,7 +297,11 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
         console.error('Error resuming playback:', err)
         setError('Failed to resume playback. Try again.')
       }
+      return
     }
+    
+    // Otherwise, add to queue
+    addToQueue(playFullText)
   }
 
   const toggleMute = () => {
@@ -257,14 +319,20 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
   const isCurrentTextPlaying = text === currentTextRef.current && isPlaying && !isPlayingFullText
   const isFullTextPlaying = isPlaying && isPlayingFullText
   
+  // Get a truncated version of text for display
+  const truncateText = (text: string, maxLength: number = 30) => {
+    if (text.length <= maxLength) return text;
+    return text.substring(0, maxLength) + '...';
+  }
+
   return (
     <div className="flex flex-col gap-2 mt-2">
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 tts-controls">
         <Button
           variant="outline"
           size="sm"
           onClick={() => togglePlay(false)}
-          disabled={!text || (isLoading && isPlayingFullText)}
+          disabled={!text}
           className={`h-8 w-8 p-0 ${isLoading && !isPlayingFullText ? 'bg-blue-50 dark:bg-blue-950' : ''}`}
           title={isLoading && !isPlayingFullText ? "Loading audio..." : isCurrentTextPlaying ? "Pause" : "Play"}
         >
@@ -294,10 +362,44 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
           <span className="sr-only">{isMuted ? "Unmute" : "Mute"}</span>
         </Button>
         
-        {error && (
+        {audioQueue.length > 0 && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowQueueDetails(!showQueueDetails)}
+            className="h-8 px-2 flex items-center gap-1 text-xs"
+            title="Toggle queue details"
+          >
+            <ListMusic className="h-3 w-3" />
+            <span className="font-medium">{audioQueue.length}</span>
+            <span className="sr-only">in queue</span>
+          </Button>
+        )}
+        
+        {queueNotification && (
+          <span className="text-xs text-green-600 animate-pulse font-medium">{queueNotification}</span>
+        )}
+        
+        {error && !queueNotification && (
           <span className="text-xs text-destructive">{error}</span>
         )}
       </div>
+      
+      {/* Queue details */}
+      {showQueueDetails && audioQueue.length > 0 && (
+        <div className="mt-2 p-2 bg-muted/30 rounded-md text-xs">
+          <div className="font-medium mb-1">Audio Queue:</div>
+          <ol className="pl-5 list-decimal">
+            {audioQueue.map((item, index) => (
+              <li key={item.id} className="mb-1">
+                {item.isFullText ? "Full document" : truncateText(item.text)}
+                {index === 0 && isPlaying && <span className="ml-2 text-green-600 font-medium">(Now Playing)</span>}
+                {index === 0 && !isPlaying && <span className="ml-2 text-blue-600 font-medium">(Next Up)</span>}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
       
       {fullText && (
         <div className="flex items-center mt-1">
@@ -305,7 +407,7 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
             variant="outline" 
             size="sm"
             onClick={() => togglePlay(true)}
-            disabled={!fullText || (isLoading && !isPlayingFullText)} 
+            disabled={!fullText} 
             className={`text-xs h-8 flex items-center ${isLoading && isPlayingFullText ? 'bg-blue-50 dark:bg-blue-950' : ''}`}
             title={isLoading && isPlayingFullText ? "Loading audio..." : isFullTextPlaying ? "Pause" : "Read Full Document"}
           >
