@@ -1,19 +1,21 @@
 export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
-import { getSignedPdfUrl } from '@/lib/s3';
 import connectToDatabase from '@/lib/mongodb';
 import Chat from '@/lib/models/chat';
-import Reducto from 'reductoai';
+import ParsedContent from '@/lib/models/parsedContent';
+import { processPdfWithReducto } from '@/lib/utils/pdf-processor';
 
-// Reducto API endpoint
-const reductoClient = new Reducto({
-  apiKey: process.env.REDUCTO_API_KEY,
-});
-
+/**
+ * API endpoint to process a PDF document with Reducto
+ * 
+ * Takes a chat ID and PDF storage URL, processes the document,
+ * and stores the results in the ParsedContent collection.
+ */
 export async function POST(request: NextRequest) {
   try {
+    // Parse and validate request
     const { chatId, pdfStorageUrl } = await request.json();
-
+    
     if (!chatId || !pdfStorageUrl) {
       return NextResponse.json(
         { error: 'Chat ID and PDF storage URL are required' },
@@ -32,56 +34,101 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       );
     }
-
-    // Generate a signed URL for the PDF (valid for 1 hour)
-    const s3Url = await getSignedPdfUrl(pdfStorageUrl);
-
+    
+    // Update chat to processing state
+    chat.processingState = 'processing';
+    await chat.save();
+    
     try {
-      // Call the Reducto API directly with fetch instead of using the client library
-      const response = await reductoClient.parse.run({ 
-        document_url: s3Url, 
-        options: {
-          extraction_mode: 'hybrid',
-          chunking: {
-            chunk_mode: 'page'
+      // Process PDF with Reducto using our utility function
+      const result = await processPdfWithReducto({ chatId, pdfStorageUrl });
+
+      if (result.success) {
+        const { response } = result;
+        
+        // Extract metadata if available
+        const metadata = {
+          pageCount: response.result?.pages?.length,
+          documentType: 'pdf',
+          processingTimeMs: response.processing_time
+        };
+        
+        // Create a new ParsedContent document
+        const parsedContent = new ParsedContent({
+          chatId: chatId,
+          jobId: response.job_id || null,
+          result: JSON.stringify(response),
+          status: 'completed',
+          metadata
+        });
+        
+        // Save the parsed content
+        await parsedContent.save();
+        
+        // Update the chat with reference to the parsed content
+        chat.parsedContentId = parsedContent._id;
+        chat.processingState = 'completed';
+        
+        // For backward compatibility, also store in legacy field
+        chat.parsedContent = JSON.stringify(response);
+        await chat.save();
+        
+        return NextResponse.json({
+          success: true,
+          jobId: response.job_id || null,
+          parsedContentId: parsedContent._id,
+          pageCount: metadata.pageCount
+        });
+      } else {
+        // Processing failed
+        const errorMessage = result.error instanceof Error ? result.error.message : 'Unknown error';
+        
+        // Create a failed parsed content record
+        const parsedContent = new ParsedContent({
+          chatId: chatId,
+          status: 'failed',
+          errorMessage
+        });
+        
+        await parsedContent.save();
+        
+        // Update chat status
+        chat.processingState = 'failed';
+        await chat.save();
+        
+        return NextResponse.json(
+          { 
+            error: 'Failed to process PDF with Reducto API',
+            details: errorMessage 
           },
-          filter_blocks: ['Discard', 'Comment']
-        },
-        advanced_options: {
-          ocr_system: 'multilingual',
-          keep_line_breaks: true,
-          add_page_markers: true,
-          table_output_format: 'dynamic',
-          continue_hierarchy: true,
-          remove_text_formatting: false,
-          merge_tables: true,
-          spreadsheet_table_clustering: 'default'
-        }
-      });
-
-
-      console.log(response);
-
+          { status: 500 }
+        );
+      }
+    } catch (processingError) {
+      console.error('Error in PDF processing:', processingError);
       
-      // Store the API response directly in parsedContent
-      chat.parsedContent = JSON.stringify(response);
+      // Update chat status
+      chat.processingState = 'failed';
       await chat.save();
-
-      return NextResponse.json({
-        success: true,
-        jobId: response.job_id || null,
+      
+      // Create a failed record
+      const parsedContent = new ParsedContent({
+        chatId: chatId,
+        status: 'failed',
+        errorMessage: processingError instanceof Error ? processingError.message : 'Unknown error'
       });
-    } catch (reductoError) {
-      console.error('Error calling Reducto API:', reductoError);
+      
+      await parsedContent.save();
+      
       return NextResponse.json(
-        { error: 'Failed to process PDF with Reducto API', details: reductoError instanceof Error ? reductoError.message : 'Unknown error' },
+        { error: 'Unexpected error processing PDF', details: processingError instanceof Error ? processingError.message : 'Unknown error' },
         { status: 500 }
       );
     }
   } catch (error) {
-    console.error('Error processing PDF:', error);
+    console.error('Error handling process-pdf request:', error);
     return NextResponse.json(
-      { error: 'Failed to process PDF' },
+      { error: 'Failed to handle PDF processing request' },
       { status: 500 }
     );
   }

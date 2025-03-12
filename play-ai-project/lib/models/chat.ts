@@ -15,7 +15,17 @@ const ChatSchema = new Schema(
     title: { type: String, required: true },
     pdfStorageUrl: { type: String },
     pdfFileName: { type: String },
-    parsedContent: { type: String, maxLength: 16777215 }, // Use String with large max size to store JSON
+    // Legacy field maintained for backward compatibility
+    // New code should use parsedContentId instead
+    parsedContent: { type: String, maxLength: 16777215 }, 
+    // Reference to the ParsedContent model
+    parsedContentId: { type: Schema.Types.ObjectId, ref: 'ParsedContent' },
+    // Processing state to track PDF processing status
+    processingState: {
+      type: String,
+      enum: ['idle', 'processing', 'completed', 'failed'],
+      default: 'idle'
+    },
     audioInfo: { type: String },
     messages: [MessageSchema],
   },
@@ -23,6 +33,10 @@ const ChatSchema = new Schema(
     timestamps: true,
   }
 );
+
+// Add indexes for faster queries
+ChatSchema.index({ id: 1 });
+ChatSchema.index({ createdAt: -1 });
 
 // Check if the model is already defined to prevent overwriting during hot reloads
 const Chat = mongoose.models.Chat || mongoose.model('Chat', ChatSchema);
