@@ -1,22 +1,20 @@
-"use client"
+'use client';
 
-import { useState, useEffect } from "react"
-import { fetchChats, createChat, deleteChat, updateChat } from "@/lib/chatService"
-import type { Chat } from "@/lib/types/chat"
-import { PlusCircle, Edit, Trash2, Check, X, MoreHorizontal, Search, MessageSquare } from "lucide-react"
-import { useRouter, usePathname } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { useState, useMemo } from 'react';
+import { PlusCircle, Edit, Trash2, Check, X, MoreHorizontal, Search, MessageSquare } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
   DropdownMenuSeparator,
-} from "@/components/ui/dropdown-menu"
-import { Skeleton } from "@/components/ui/skeleton"
-import { cn } from "@/lib/utils"
+} from '@/components/ui/dropdown-menu';
+import { Skeleton } from '@/components/ui/skeleton';
+import { cn } from '@/lib/utils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,119 +24,105 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from '@/components/ui/alert-dialog';
+import { useChats, useCreateChat, useUpdateChat, useDeleteChat } from '@/lib/hooks/useChats';
 
 interface ChatListProps {
-  onSelectChat?: () => void
+  onSelectChat?: () => void;
 }
 
 export default function ChatList({ onSelectChat }: ChatListProps) {
-  const router = useRouter()
-  const pathname = usePathname()
-  const [chats, setChats] = useState<Chat[]>([])
-  const [filteredChats, setFilteredChats] = useState<Chat[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [editTitle, setEditTitle] = useState("")
-  const [searchQuery, setSearchQuery] = useState("")
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [chatToDelete, setChatToDelete] = useState<string | null>(null)
+  const router = useRouter();
+  const pathname = usePathname();
+  
+  // Local state
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [chatToDelete, setChatToDelete] = useState<string | null>(null);
+  
+  // React Query hooks
+  const { 
+    data: chats = [], 
+    isLoading, 
+    isError, 
+    error 
+  } = useChats();
+  
+  const createChatMutation = useCreateChat();
+  const updateChatMutation = useUpdateChat();
+  const deleteChatMutation = useDeleteChat();
 
-  // Load chats on component mount
-  useEffect(() => {
-    const loadChats = async () => {
-      try {
-        setLoading(true)
-        const fetchedChats = await fetchChats()
-        setChats(fetchedChats)
-        setFilteredChats(fetchedChats)
-        setError(null)
-      } catch (err) {
-        setError("Failed to load chats")
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
+  // Filter chats based on search query
+  const filteredChats = useMemo(() => {
+    if (searchQuery.trim() === '') {
+      return chats;
     }
-
-    loadChats()
-  }, [])
-
-  // Filter chats when search query changes
-  useEffect(() => {
-    if (searchQuery.trim() === "") {
-      setFilteredChats(chats)
-    } else {
-      const filtered = chats.filter((chat) => chat.title.toLowerCase().includes(searchQuery.toLowerCase()))
-      setFilteredChats(filtered)
-    }
-  }, [searchQuery, chats])
+    return chats.filter((chat) => 
+      chat.title.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  }, [searchQuery, chats]);
 
   const handleCreateChat = async () => {
     try {
-      const newChat = await createChat({
+      const newChat = await createChatMutation.mutateAsync({
         title: `New Chat ${new Date().toLocaleTimeString()}`,
-      })
-      setChats((prevChats) => [newChat, ...prevChats])
-      router.push(`/chat/${newChat.id}`)
-      if (onSelectChat) onSelectChat()
+      });
+      
+      router.push(`/chat/${newChat.id}`);
+      if (onSelectChat) onSelectChat();
     } catch (err) {
-      setError("Failed to create new chat")
-      console.error(err)
+      console.error('Failed to create new chat:', err);
     }
-  }
+  };
 
   const confirmDeleteChat = (id: string) => {
-    setChatToDelete(id)
-    setDeleteDialogOpen(true)
-  }
+    setChatToDelete(id);
+    setDeleteDialogOpen(true);
+  };
 
   const handleDeleteChat = async () => {
-    if (!chatToDelete) return
+    if (!chatToDelete) return;
 
     try {
-      await deleteChat(chatToDelete)
-      setChats((prevChats) => prevChats.filter((chat) => chat.id !== chatToDelete))
-      setDeleteDialogOpen(false)
-      setChatToDelete(null)
+      await deleteChatMutation.mutateAsync(chatToDelete);
+      setDeleteDialogOpen(false);
+      setChatToDelete(null);
     } catch (err) {
-      setError("Failed to delete chat")
-      console.error(err)
+      console.error('Failed to delete chat:', err);
     }
-  }
+  };
 
-  const startEditing = (chat: Chat) => {
-    setEditingId(chat.id)
-    setEditTitle(chat.title)
-  }
+  const startEditing = (chat: { id: string; title: string }) => {
+    setEditingId(chat.id);
+    setEditTitle(chat.title);
+  };
 
   const cancelEditing = () => {
-    setEditingId(null)
-    setEditTitle("")
-  }
+    setEditingId(null);
+    setEditTitle('');
+  };
 
   const saveTitle = async (id: string) => {
-    if (!editTitle.trim()) return
+    if (!editTitle.trim()) return;
 
     try {
-      const updatedChat = await updateChat({
+      await updateChatMutation.mutateAsync({
         id,
         title: editTitle,
-      })
-
-      setChats((prevChats) => prevChats.map((chat) => (chat.id === id ? { ...chat, title: updatedChat.title } : chat)))
-      setEditingId(null)
+      });
+      
+      setEditingId(null);
     } catch (err) {
-      setError("Failed to update chat title")
-      console.error(err)
+      console.error('Failed to update chat title:', err);
     }
-  }
+  };
 
   const navigateToChat = (chatId: string) => {
-    router.push(`/chat/${chatId}`)
-    if (onSelectChat) onSelectChat()
-  }
+    router.push(`/chat/${chatId}`);
+    if (onSelectChat) onSelectChat();
+  };
 
   const renderSkeletons = () => {
     return Array(5)
@@ -153,15 +137,20 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
             </div>
           </div>
         </div>
-      ))
-  }
+      ));
+  };
 
   return (
     <div className="h-full flex flex-col">
       <div className="shrink-0 p-4 border-b space-y-4">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">Chats</h2>
-          <Button onClick={handleCreateChat} size="sm" className="gap-1">
+          <Button 
+            onClick={handleCreateChat} 
+            size="sm" 
+            className="gap-1"
+            disabled={createChatMutation.isPending}
+          >
             <PlusCircle className="h-4 w-4" />
             <span>New</span>
           </Button>
@@ -177,27 +166,28 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
         </div>
       </div>
 
-      {error && (
+      {isError && (
         <div className="p-4 m-2 text-sm bg-destructive/10 text-destructive rounded-md">
-          {error}
-          <Button variant="outline" size="sm" className="mt-2 w-full" onClick={() => setError(null)}>
-            Dismiss
-          </Button>
+          {error?.toString() || 'Failed to load chats'}
         </div>
       )}
 
       <ScrollArea className="flex-1">
-        {loading ? (
+        {isLoading ? (
           renderSkeletons()
         ) : filteredChats.length === 0 ? (
           <div className="p-8 text-center">
             <MessageSquare className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
             <h3 className="font-medium text-muted-foreground mb-1">No chats found</h3>
             <p className="text-sm text-muted-foreground mb-4">
-              {searchQuery ? "Try a different search term" : "Start a new conversation"}
+              {searchQuery ? 'Try a different search term' : 'Start a new conversation'}
             </p>
             {!searchQuery && (
-              <Button onClick={handleCreateChat} size="sm">
+              <Button 
+                onClick={handleCreateChat} 
+                size="sm"
+                disabled={createChatMutation.isPending}
+              >
                 <PlusCircle className="mr-2 h-4 w-4" />
                 New Chat
               </Button>
@@ -206,10 +196,10 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
         ) : (
           <div className="divide-y divide-border">
             {filteredChats.map((chat) => {
-              const isActive = pathname === `/chat/${chat.id}`
+              const isActive = pathname === `/chat/${chat.id}`;
 
               return (
-                <div key={chat.id} className={cn("transition-colors", isActive ? "bg-accent" : "hover:bg-accent/50")}>
+                <div key={chat.id} className={cn('transition-colors', isActive ? 'bg-accent' : 'hover:bg-accent/50')}>
                   {editingId === chat.id ? (
                     <div className="p-4 flex items-center gap-2">
                       <Input
@@ -218,22 +208,29 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
                         className="flex-1"
                         autoFocus
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") {
-                            saveTitle(chat.id)
-                          } else if (e.key === "Escape") {
-                            cancelEditing()
+                          if (e.key === 'Enter') {
+                            saveTitle(chat.id);
+                          } else if (e.key === 'Escape') {
+                            cancelEditing();
                           }
                         }}
+                        disabled={updateChatMutation.isPending}
                       />
                       <Button
                         onClick={() => saveTitle(chat.id)}
                         variant="ghost"
                         size="icon"
                         className="text-green-500 hover:text-green-600"
+                        disabled={updateChatMutation.isPending}
                       >
                         <Check className="h-4 w-4" />
                       </Button>
-                      <Button onClick={cancelEditing} variant="ghost" size="icon">
+                      <Button 
+                        onClick={cancelEditing} 
+                        variant="ghost" 
+                        size="icon"
+                        disabled={updateChatMutation.isPending}
+                      >
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
@@ -241,13 +238,13 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
                     <div className="group p-4">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigateToChat(chat.id)}>
-                          <h3 className={cn("font-medium truncate", isActive && "text-primary")}>{chat.title}</h3>
+                          <h3 className={cn('font-medium truncate', isActive && 'text-primary')}>{chat.title}</h3>
                           <p className="text-xs text-muted-foreground truncate">
                             {new Date(chat.updatedAt).toLocaleString(undefined, {
-                              month: "short",
-                              day: "numeric",
-                              hour: "2-digit",
-                              minute: "2-digit",
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
                             })}
                           </p>
                         </div>
@@ -282,7 +279,7 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
                     </div>
                   )}
                 </div>
-              )
+              );
             })}
           </div>
         )}
@@ -301,6 +298,7 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
             <AlertDialogAction
               onClick={handleDeleteChat}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={deleteChatMutation.isPending}
             >
               Delete
             </AlertDialogAction>
@@ -308,6 +306,6 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  )
+  );
 }
 

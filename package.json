@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@aws-sdk/s3-request-presigner": "^3.758.0",
     "uuidv4": "^6.2.13"
   }
 }

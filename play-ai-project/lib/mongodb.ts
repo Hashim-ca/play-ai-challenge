@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 
+
 const MONGODB_URI = process.env.MONGODB_URI;
 
 if (!MONGODB_URI) {
@@ -8,6 +9,7 @@ if (!MONGODB_URI) {
 
 // Define the global mongoose type
 declare global {
+  // eslint-disable-next-line no-var
   var mongoose: {
     conn: typeof mongoose | null;
     promise: Promise<typeof mongoose> | null;

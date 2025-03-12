@@ -2,16 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import Chat from '@/lib/models/chat';
 
-interface Params {
-  params: {
-    id: string;
-  };
-}
-
 // GET /api/chat/[id] - Get a single chat by ID
-export async function GET(request: NextRequest, { params }: Params) {
+export async function GET(
+  request: NextRequest,
+  context: { params: { id: string } }
+) {
   try {
-    const { id } = params;
+    // Safe access to params
+    const id = context.params.id;
     
     await connectToDatabase();
     const chat = await Chat.findOne({ id });
@@ -34,9 +32,13 @@ export async function GET(request: NextRequest, { params }: Params) {
 }
 
 // PUT /api/chat/[id] - Update a chat
-export async function PUT(request: NextRequest, { params }: Params) {
+export async function PUT(
+  request: NextRequest,
+  context: { params: { id: string } }
+) {
   try {
-    const { id } = params;
+    // Safe access to params
+    const id = context.params.id;
     const body = await request.json();
     
     await connectToDatabase();
@@ -71,9 +73,13 @@ export async function PUT(request: NextRequest, { params }: Params) {
 }
 
 // DELETE /api/chat/[id] - Delete a chat
-export async function DELETE(request: NextRequest, { params }: Params) {
+export async function DELETE(
+  request: NextRequest,
+  context: { params: { id: string } }
+) {
   try {
-    const { id } = params;
+    // Safe access to params
+    const id = context.params.id;
     
     await connectToDatabase();
     const deletedChat = await Chat.findOneAndDelete({ id });

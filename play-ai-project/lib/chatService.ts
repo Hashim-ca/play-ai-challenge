@@ -107,4 +107,26 @@ export async function deleteChat(id: string): Promise<void> {
     console.error('Error deleting chat:', error);
     throw error;
   }
+}
+
+// Function to send a message to the chat
+export async function sendMessage(chatId: string, message: string): Promise<{ response: string }> {
+  try {
+    const response = await fetch(`/api/chat/${chatId}/message`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ message }),
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to send message');
+    }
+
+    return response.json();
+  } catch (error) {
+    console.error('Error sending message:', error);
+    throw error;
+  }
 } 

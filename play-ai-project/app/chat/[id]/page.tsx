@@ -1,47 +1,40 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { fetchChatById, updateChat } from '@/lib/chatService';
-import { Chat as ChatType } from '@/lib/types/chat';
 import { Edit, Check, X } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Chat } from '@/app/components/Chat';
+import { useChat, useUpdateChat } from '@/lib/hooks/useChats';
 
 export default function ChatPage() {
   const params = useParams();
   const chatId = params.id as string;
   
-  const [chat, setChat] = useState<ChatType | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [editTitle, setEditTitle] = useState('');
+  
+  // React Query hooks
+  const { 
+    data: chat, 
+    isLoading, 
+    isError, 
+    error
+  } = useChat(chatId);
+  
+  const updateChatMutation = useUpdateChat();
 
-  useEffect(() => {
-    const loadChat = async () => {
-      try {
-        setLoading(true);
-        const fetchedChat = await fetchChatById(chatId);
-        setChat(fetchedChat);
-        setEditTitle(fetchedChat.title);
-        setError(null);
-      } catch (err) {
-        setError('Failed to load chat');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    if (chatId) {
-      loadChat();
-    }
-  }, [chatId]);
+  // Initialize title when chat data is loaded
+  if (chat && editTitle === '' && !isEditingTitle) {
+    setEditTitle(chat.title);
+  }
 
   const startEditingTitle = () => {
+    if (chat) {
+      setEditTitle(chat.title);
+    }
     setIsEditingTitle(true);
   };
 
@@ -58,28 +51,30 @@ export default function ChatPage() {
     }
 
     try {
-      const updatedChat = await updateChat({
+      await updateChatMutation.mutateAsync({
         id: chatId,
         title: editTitle,
       });
-      setChat(updatedChat);
       setIsEditingTitle(false);
     } catch (err) {
-      setError('Failed to update chat title');
-      console.error(err);
+      console.error('Failed to update chat title:', err);
     }
   };
 
-  const handleChatUpdate = (updatedChat: ChatType) => {
-    setChat(updatedChat);
-  };
-
-  if (loading) {
-    return <div className="p-4">Loading chat...</div>;
+  if (isLoading) {
+    return (
+      <div className="p-4 flex items-center justify-center h-full">
+        <p className="text-muted-foreground">Loading chat...</p>
+      </div>
+    );
   }
 
-  if (error || !chat) {
-    return <div className="p-4 text-destructive">{error || 'Chat not found'}</div>;
+  if (isError || !chat) {
+    return (
+      <div className="p-4 text-destructive flex items-center justify-center h-full">
+        {error?.toString() || 'Chat not found'}
+      </div>
+    );
   }
 
   return (
@@ -99,12 +94,14 @@ export default function ChatPage() {
                   cancelEditingTitle();
                 }
               }}
+              disabled={updateChatMutation.isPending}
             />
             <Button
               onClick={saveTitle}
               variant="ghost"
               size="icon"
               className="text-green-500 hover:text-green-600 hover:bg-green-50"
+              disabled={updateChatMutation.isPending}
             >
               <Check className="h-4 w-4" />
             </Button>
@@ -113,6 +110,7 @@ export default function ChatPage() {
               variant="ghost"
               size="icon"
               className="text-muted-foreground hover:text-foreground hover:bg-accent"
+              disabled={updateChatMutation.isPending}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -133,7 +131,7 @@ export default function ChatPage() {
       </CardHeader>
       
       <div className="flex-1 overflow-hidden">
-        <Chat chat={chat} onChatUpdate={handleChatUpdate} />
+        <Chat chat={chat} />
       </div>
     </Card>
   );

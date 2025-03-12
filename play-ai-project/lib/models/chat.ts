@@ -1,5 +1,14 @@
 import mongoose, { Schema } from 'mongoose';
 
+const MessageSchema = new Schema(
+  {
+    id: { type: String, required: true, unique: true },
+    content: { type: String, required: true },
+    role: { type: String, required: true, enum: ['user', 'assistant'] },
+    timestamp: { type: Date, default: Date.now },
+  }
+);
+
 const ChatSchema = new Schema(
   {
     id: { type: String, required: true, unique: true },
@@ -8,6 +17,7 @@ const ChatSchema = new Schema(
     pdfFileName: { type: String },
     parsedContent: { type: String },
     audioInfo: { type: String },
+    messages: [MessageSchema],
   },
   {
     timestamps: true,

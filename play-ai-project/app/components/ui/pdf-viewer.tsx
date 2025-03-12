@@ -49,7 +49,8 @@ export function PDFViewer({ url }: PDFViewerProps) {
     cMapPacked: true,
     standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
     withCredentials: false,
-  }), [pdfjs.version]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), []);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
