@@ -101,7 +101,16 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
     return (
       <Card className="h-full w-full flex flex-col">
         <CardContent className="flex-1 overflow-y-auto p-4 flex items-center justify-center">
-          <p className="text-muted-foreground">Chat not found or loading...</p>
+          <div className="text-center">
+            <h3 className="text-lg font-semibold mb-4">No Chat Selected</h3>
+            <Button 
+              onClick={() => window.location.href = '/chat/new'}
+              className="flex items-center gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              Create New Chat
+            </Button>
+          </div>
         </CardContent>
       </Card>
     )
