@@ -4,8 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 
-// Set worker source for react-pdf
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+// Try to set worker source for react-pdf
+try {
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+} catch (error) {
+  console.error('Error setting PDF.js worker source:', error);
+}
 
 interface PDFViewerProps {
   url: string;
@@ -17,6 +21,33 @@ export function PDFViewer({ url }: PDFViewerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [key, setKey] = useState(0); // For forcing remount
+  
+  // Try alternative worker sources if needed
+  useEffect(() => {
+    const workerSources = [
+      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`,
+      `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`,
+      `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
+    ];
+    
+    let currentSourceIndex = 0;
+    
+    const tryWorkerSource = () => {
+      if (currentSourceIndex < workerSources.length) {
+        try {
+          pdfjs.GlobalWorkerOptions.workerSrc = workerSources[currentSourceIndex];
+          console.log(`Trying PDF.js worker source: ${workerSources[currentSourceIndex]}`);
+          currentSourceIndex++;
+        } catch (error) {
+          console.error('Error setting PDF.js worker source:', error);
+          currentSourceIndex++;
+          tryWorkerSource();
+        }
+      }
+    };
+    
+    tryWorkerSource();
+  }, []);
 
   // Reset when URL changes
   useEffect(() => {
@@ -84,9 +115,9 @@ export function PDFViewer({ url }: PDFViewerProps) {
             loading={<div className="p-8 text-center">Loading PDF...</div>}
             className="w-full"
             options={{
-              cMapUrl: '/cmaps/',
+              cMapUrl: 'https://unpkg.com/pdfjs-dist@3.11.174/cmaps/',
               cMapPacked: true,
-              standardFontDataUrl: '/standard_fonts/',
+              standardFontDataUrl: 'https://unpkg.com/pdfjs-dist@3.11.174/standard_fonts/',
               withCredentials: false,
             }}
           >

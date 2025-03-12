@@ -22,6 +22,17 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Handle case when chat is undefined
+  if (!chat) {
+    return (
+      <Card className="h-full w-full flex flex-col">
+        <CardContent className="flex-1 overflow-y-auto p-4 flex items-center justify-center">
+          <p className="text-muted-foreground">Chat not found or loading...</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   useEffect(() => {
     const loadPdf = async () => {
       if (chat.pdfStorageUrl) {
