@@ -4,11 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 
-// Try to set worker source for react-pdf
-try {
-  pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
-} catch (error) {
-  console.error('Error setting PDF.js worker source:', error);
+// Set worker source for react-pdf
+if (typeof window !== 'undefined') {
+  pdfjs.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`;
 }
 
 interface PDFViewerProps {
@@ -21,37 +19,18 @@ export function PDFViewer({ url }: PDFViewerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [key, setKey] = useState(0); // For forcing remount
-  const [useWorker, setUseWorker] = useState(true);
-  
-  // Try alternative worker sources if needed
+  const [windowWidth, setWindowWidth] = useState(0);
+
+  // Set window width after mount
   useEffect(() => {
-    const workerSources = [
-      `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`,
-      `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`,
-      `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.js`
-    ];
+    setWindowWidth(window.innerWidth);
     
-    let currentSourceIndex = 0;
-    
-    const tryWorkerSource = () => {
-      if (currentSourceIndex < workerSources.length) {
-        try {
-          pdfjs.GlobalWorkerOptions.workerSrc = workerSources[currentSourceIndex];
-          console.log(`Trying PDF.js worker source: ${workerSources[currentSourceIndex]}`);
-          currentSourceIndex++;
-        } catch (error) {
-          console.error('Error setting PDF.js worker source:', error);
-          currentSourceIndex++;
-          tryWorkerSource();
-        }
-      } else {
-        // If all worker sources fail, disable the worker
-        console.warn('All worker sources failed, disabling worker');
-        setUseWorker(false);
-      }
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
     };
     
-    tryWorkerSource();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   // Reset when URL changes
@@ -120,9 +99,9 @@ export function PDFViewer({ url }: PDFViewerProps) {
             loading={<div className="p-8 text-center">Loading PDF...</div>}
             className="w-full"
             options={{
-              cMapUrl: 'https://unpkg.com/pdfjs-dist@3.11.174/cmaps/',
+              cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/cmaps/`,
               cMapPacked: true,
-              standardFontDataUrl: 'https://unpkg.com/pdfjs-dist@3.11.174/standard_fonts/',
+              standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
               withCredentials: false,
             }}
           >
@@ -132,7 +111,7 @@ export function PDFViewer({ url }: PDFViewerProps) {
                 renderTextLayer={false}
                 renderAnnotationLayer={false}
                 className="mx-auto"
-                width={window.innerWidth > 768 ? 600 : window.innerWidth - 48}
+                width={windowWidth > 768 ? 600 : windowWidth - 48}
               />
             ) : null}
           </Document>
