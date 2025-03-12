@@ -151,6 +151,7 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
       // Update chat with PDF info and set initial processing state
       const updatedChat = await updateChatMutation.mutateAsync({
         id: chat.id,
+        title: fileName.replace(/\.pdf$/i, ''), // Remove .pdf extension for cleaner name
         pdfStorageUrl: key,
         pdfFileName: fileName,
         processingState: "processing", // Set initial processing state
