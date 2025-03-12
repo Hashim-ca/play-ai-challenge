@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -42,6 +42,14 @@ export function PDFViewer({ url }: PDFViewerProps) {
     // Force remount the Document component when URL changes
     setKey(prev => prev + 1);
   }, [url]);
+
+  // Memoize the options object to prevent unnecessary re-renders
+  const documentOptions = useMemo(() => ({
+    cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/cmaps/`,
+    cMapPacked: true,
+    standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
+    withCredentials: false,
+  }), [pdfjs.version]);
 
   function onDocumentLoadSuccess({ numPages }: { numPages: number }) {
     setNumPages(numPages);
@@ -98,12 +106,7 @@ export function PDFViewer({ url }: PDFViewerProps) {
             onLoadError={onDocumentLoadError}
             loading={<div className="p-8 text-center">Loading PDF...</div>}
             className="w-full"
-            options={{
-              cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/cmaps/`,
-              cMapPacked: true,
-              standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${pdfjs.version}/standard_fonts/`,
-              withCredentials: false,
-            }}
+            options={documentOptions}
           >
             {!loading && numPages ? (
               <Page
