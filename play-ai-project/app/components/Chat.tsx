@@ -30,9 +30,11 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
   // React Query hooks
   const updateChatMutation = useUpdateChat();
   const sendMessageMutation = useSendMessage();
-  
+
   // Helper function to fetch latest chat data
   const fetchChatUpdate = async () => {
+    if (!chat?.id) return;
+    
     try {
       const response = await fetch(`/api/chat/${chat.id}`);
       if (response.ok) {
@@ -46,11 +48,11 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
     }
   };
 
-  // PDF processing hook
+  // PDF processing hook - with safe fallbacks for undefined chat
   const pdfProcessing = usePdfProcessing({
-    chatId: chat.id,
-    pdfStorageUrl: chat.pdfStorageUrl,
-    initialState: chat.processingState || 'idle',
+    chatId: chat?.id ?? '',
+    pdfStorageUrl: chat?.pdfStorageUrl,
+    initialState: chat?.processingState || 'idle',
     onSuccess: () => {
       // Refresh chat data to get the updated parsedContentId
       fetchChatUpdate();
@@ -78,6 +80,17 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
 
     loadPdf();
   }, [chat?.pdfStorageUrl]);
+
+  // Handle case when chat is undefined
+  if (!chat) {
+    return (
+      <Card className="h-full w-full flex flex-col">
+        <CardContent className="flex-1 overflow-y-auto p-4 flex items-center justify-center">
+          <p className="text-muted-foreground">Chat not found or loading...</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const handleSendMessage = async () => {
     if (!message.trim() || !chat.id) return;
@@ -163,17 +176,6 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
       setError(err instanceof Error ? err.message : 'Failed to process PDF');
     }
   };
-
-  // Handle case when chat is undefined
-  if (!chat) {
-    return (
-      <Card className="h-full w-full flex flex-col">
-        <CardContent className="flex-1 overflow-y-auto p-4 flex items-center justify-center">
-          <p className="text-muted-foreground">Chat not found or loading...</p>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <>
