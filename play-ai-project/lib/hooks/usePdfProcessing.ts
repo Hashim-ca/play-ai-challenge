@@ -17,7 +17,7 @@ interface ProcessingStatus {
   status: string;
   parsedContent: ParsedContent | null;
   errorMessage: string | null;
-  metadata: any;
+  metadata: Record<string, unknown>;
 }
 
 /**

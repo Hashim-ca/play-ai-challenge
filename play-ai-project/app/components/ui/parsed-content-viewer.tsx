@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -22,45 +22,45 @@ interface ParsedContentViewerProps {
 export function ParsedContentViewer({ chatId, onClose }: ParsedContentViewerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [parsedContent, setParsedContent] = useState<any>(null);
+  const [parsedContent, setParsedContent] = useState<Record<string, unknown> | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState('text');
-  const [metadata, setMetadata] = useState<any>(null);
+  const [metadata, setMetadata] = useState<Record<string, unknown> | null>(null);
 
-  useEffect(() => {
-    const fetchParsedContent = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        const response = await fetch(`/api/chat/${chatId}/parsed-content`);
-        
-        if (!response.ok) {
-          throw new Error(`Error: ${response.status}`);
-        }
-        
-        const data = await response.json();
-        
-        if (data.success && data.parsedContent) {
-          setParsedContent(data.parsedContent);
-          // Extract metadata if available
-          setMetadata(data.metadata || {
-            pageCount: data.parsedContent.result?.pages?.length || 0,
-            documentType: 'PDF',
-            processingTimeMs: data.parsedContent.processing_time
-          });
-        } else {
-          setError(data.error || 'Failed to load parsed content');
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
-      } finally {
-        setLoading(false);
+  const fetchParsedContent = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch(`/api/chat/${chatId}/parsed-content`);
+      
+      if (!response.ok) {
+        throw new Error(`Error: ${response.status}`);
       }
-    };
-    
-    fetchParsedContent();
+      
+      const data = await response.json();
+      
+      if (data.success && data.parsedContent) {
+        setParsedContent(data.parsedContent);
+        // Extract metadata if available
+        setMetadata(data.metadata || {
+          pageCount: data.parsedContent.result?.pages?.length || 0,
+          documentType: 'PDF',
+          processingTimeMs: data.parsedContent.processing_time
+        });
+      } else {
+        setError(data.error || 'Failed to load parsed content');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
   }, [chatId]);
+  
+  useEffect(() => {
+    fetchParsedContent();
+  }, [chatId, fetchParsedContent]);
 
   const downloadAsJson = () => {
     if (!parsedContent) return;
@@ -94,9 +94,9 @@ export function ParsedContentViewer({ chatId, onClose }: ParsedContentViewerProp
     
     // Extract just the text content from pages
     const pages = parsedContent.result.pages || [];
-    return pages.map((page: any, index: number) => {
+    return pages.map((page: Record<string, unknown>, index: number) => {
       // Get text content for the page
-      const pageContent = page.text || '';
+      const pageContent = (page.text as string) || '';
       
       return (
         <div key={`page-${index}`} className="mb-8">
@@ -238,27 +238,7 @@ export function ParsedContentViewer({ chatId, onClose }: ParsedContentViewerProp
           <Button 
             variant="outline" 
             size="sm" 
-            onClick={() => {
-              setLoading(true);
-              setError(null);
-              const fetchParsedContent = async () => {
-                try {
-                  const response = await fetch(`/api/chat/${chatId}/parsed-content`);
-                  const data = await response.json();
-                  if (data.success && data.parsedContent) {
-                    setParsedContent(data.parsedContent);
-                    setMetadata(data.metadata);
-                  } else {
-                    setError(data.error || 'Failed to load parsed content');
-                  }
-                } catch (err) {
-                  setError(err instanceof Error ? err.message : 'An error occurred');
-                } finally {
-                  setLoading(false);
-                }
-              };
-              fetchParsedContent();
-            }}
+            onClick={fetchParsedContent}
           >
             Try Again
           </Button>
