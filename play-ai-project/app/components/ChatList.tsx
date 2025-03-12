@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useMemo } from 'react';
-import { PlusCircle, Edit, Trash2, Check, X, MoreHorizontal, Search, MessageSquare } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { PlusCircle, Edit, Trash2, Check, X, MoreHorizontal, Search, MessageSquare, Loader2 } from 'lucide-react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useChats, useCreateChat, useUpdateChat, useDeleteChat } from '@/lib/hooks/useChats';
+import { Badge } from '@/components/ui/badge';
 
 interface ChatListProps {
   onSelectChat?: () => void;
@@ -34,6 +35,7 @@ interface ChatListProps {
 export default function ChatList({ onSelectChat }: ChatListProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchInputRef = useRef<HTMLInputElement>(null);
   
   // Local state
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -53,6 +55,19 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
   const createChatMutation = useCreateChat();
   const updateChatMutation = useUpdateChat();
   const deleteChatMutation = useDeleteChat();
+
+  // Focus search input when pressing Cmd+K or Ctrl+K
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // Filter chats based on search query
   const filteredChats = useMemo(() => {
@@ -151,18 +166,34 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
             className="gap-1"
             disabled={createChatMutation.isPending}
           >
-            <PlusCircle className="h-4 w-4" />
+            {createChatMutation.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <PlusCircle className="h-4 w-4" />
+            )}
             <span>New</span>
           </Button>
         </div>
         <div className="relative">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="Search chats..."
+            ref={searchInputRef}
+            placeholder="Search chats... (⌘K)"
             className="pl-9"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
+          {searchQuery && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="absolute right-1 top-1 h-7 w-7 text-muted-foreground"
+              onClick={() => setSearchQuery('')}
+            >
+              <X className="h-3.5 w-3.5" />
+              <span className="sr-only">Clear search</span>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -197,6 +228,7 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
           <div className="divide-y divide-border">
             {filteredChats.map((chat) => {
               const isActive = pathname === `/chat/${chat.id}`;
+              const hasPdf = Boolean(chat.pdfFileName);
 
               return (
                 <div key={chat.id} className={cn('transition-colors', isActive ? 'bg-accent' : 'hover:bg-accent/50')}>
@@ -220,10 +252,11 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
                         onClick={() => saveTitle(chat.id)}
                         variant="ghost"
                         size="icon"
-                        className="text-green-500 hover:text-green-600"
+                        className="text-green-500 hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30"
                         disabled={updateChatMutation.isPending}
                       >
                         <Check className="h-4 w-4" />
+                        <span className="sr-only">Save</span>
                       </Button>
                       <Button 
                         onClick={cancelEditing} 
@@ -232,13 +265,24 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
                         disabled={updateChatMutation.isPending}
                       >
                         <X className="h-4 w-4" />
+                        <span className="sr-only">Cancel</span>
                       </Button>
                     </div>
                   ) : (
                     <div className="group p-4">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => navigateToChat(chat.id)}>
-                          <h3 className={cn('font-medium truncate', isActive && 'text-primary')}>{chat.title}</h3>
+                        <div 
+                          className="flex-1 min-w-0 cursor-pointer" 
+                          onClick={() => navigateToChat(chat.id)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <h3 className={cn('font-medium truncate', isActive && 'text-primary')}>
+                              {chat.title}
+                            </h3>
+                            {hasPdf && (
+                              <Badge variant="outline" className="text-xs">PDF</Badge>
+                            )}
+                          </div>
                           <p className="text-xs text-muted-foreground truncate">
                             {new Date(chat.updatedAt).toLocaleString(undefined, {
                               month: 'short',
@@ -300,7 +344,14 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={deleteChatMutation.isPending}
             >
-              Delete
+              {deleteChatMutation.isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                'Delete'
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -308,4 +359,3 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
     </div>
   );
 }
-
