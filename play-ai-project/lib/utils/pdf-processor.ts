@@ -1,5 +1,7 @@
 import Reducto from 'reductoai';
 import { ProcessPdfParams } from '../types/chat';
+import { ParseRunParams } from 'reductoai/resources/parse';
+import { ProcessPdfResult } from '../types/reducto';
 
 // Initialize Reducto client
 const reductoClient = new Reducto({
@@ -50,14 +52,14 @@ const defaultReductoOptions = {
     filter_blocks: ['Discard', 'Comment']
   },
   advanced_options: {
-    ocr_system: 'multilingual',
+    ocr_system: 'multilingual' as 'multilingual' | 'highres' | 'combined',
     keep_line_breaks: true,
     add_page_markers: true,
     table_output_format: 'dynamic',
     continue_hierarchy: true,
     remove_text_formatting: false,
     merge_tables: true,
-    spreadsheet_table_clustering: 'default'
+    spreadsheet_table_clustering: 'default' as 'default' | 'disabled'
   }
 };
 
@@ -66,7 +68,7 @@ const defaultReductoOptions = {
  * @param params - Parameters for PDF processing
  * @returns The Reducto API response
  */
-export async function processPdfWithReducto(params: ProcessPdfParams) {
+export async function processPdfWithReducto(params: ProcessPdfParams): Promise<ProcessPdfResult> {
   const { pdfStorageUrl } = params;
   
   // Try the direct R2 URL first
@@ -78,7 +80,7 @@ export async function processPdfWithReducto(params: ProcessPdfParams) {
     const response = await reductoClient.parse.run({
       document_url: directUrl,
       ...defaultReductoOptions
-    });
+    } as ParseRunParams);
     
     return {
       success: true,
@@ -96,7 +98,7 @@ export async function processPdfWithReducto(params: ProcessPdfParams) {
       const response = await reductoClient.parse.run({
         document_url: proxyUrl,
         ...defaultReductoOptions
-      });
+      } as ParseRunParams);
       
       return {
         success: true,
@@ -109,8 +111,8 @@ export async function processPdfWithReducto(params: ProcessPdfParams) {
       // Both approaches failed
       return {
         success: false,
-        error: proxyUrlError,
-        directUrlError,
+        error: proxyUrlError as Error,
+        directUrlError: directUrlError as Error,
         url: directUrl
       };
     }

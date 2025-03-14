@@ -43,20 +43,34 @@ export async function POST(request: NextRequest) {
       // Process PDF with Reducto using our utility function
       const result = await processPdfWithReducto({ chatId, pdfStorageUrl });
 
-      if (result.success) {
+      if (result.success && result.response) {
         const { response } = result;
         
         // Extract metadata if available
         const metadata = {
-          pageCount: response.result?.pages?.length,
+          pageCount: 0, // Default value
           documentType: 'pdf',
-          processingTimeMs: response.processing_time
+          processingTimeMs: 0 // Default value
         };
+        
+        // Extract page count if available using type guards
+        if (response.result && 
+            typeof response.result === 'object' && 
+            'pages' in response.result && 
+            Array.isArray(response.result.pages)) {
+          metadata.pageCount = response.result.pages.length;
+        }
+        
+        // Extract processing time if available
+        if ('processing_time' in response && 
+            typeof response.processing_time === 'number') {
+          metadata.processingTimeMs = response.processing_time;
+        }
         
         // Create a new ParsedContent document
         const parsedContent = new ParsedContent({
           chatId: chatId,
-          jobId: response.job_id || null,
+          jobId: 'job_id' in response ? response.job_id : null,
           result: JSON.stringify(response),
           status: 'completed',
           metadata
@@ -75,7 +89,7 @@ export async function POST(request: NextRequest) {
         
         return NextResponse.json({
           success: true,
-          jobId: response.job_id || null,
+          jobId: 'job_id' in response ? response.job_id : null,
           parsedContentId: parsedContent._id,
           pageCount: metadata.pageCount
         });

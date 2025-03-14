@@ -85,6 +85,11 @@ export function PDFViewer({ url, chatId, isSplitView }: PDFViewerProps) {
         console.log('Fetching parsed content for chatId:', chatId);
         const response = await fetch(`/api/chat/${chatId}/parsed-content`);
         if (!response.ok) {
+          if (response.status === 404) {
+            // This is expected when document hasn't been parsed yet
+            console.log('No parsed content available for this document yet');
+            return; // Just return without throwing an error
+          }
           throw new Error(`Error: ${response.status}`);
         }
         
