@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+// Import the enhanced hook from the main project
+import { usePdfProcessing } from '../../../play-ai-project/lib/hooks/usePdfProcessing';
 
 interface UsePdfProcessingStatusProps {
   chatId: string;
@@ -7,51 +8,25 @@ interface UsePdfProcessingStatusProps {
   onError: (error: string) => void;
 }
 
+/**
+ * A simpler wrapper around usePdfProcessing
+ * Using the more advanced implementation internally
+ */
 export function usePdfProcessingStatus({
   chatId,
   isProcessing,
   onComplete,
   onError,
 }: UsePdfProcessingStatusProps) {
-  const [pollCount, setPollCount] = useState(0);
+  // Use the enhanced hook with simpleMode for compatibility
+  const processing = usePdfProcessing({
+    chatId,
+    initialState: isProcessing ? 'processing' : 'idle',
+    simpleMode: true,
+    pollingInterval: 2000, // Poll every 2 seconds to match the original implementation
+    onSuccess: onComplete,
+    onError: (error) => onError(error.message || 'Processing failed')
+  });
 
-  useEffect(() => {
-    let pollInterval: NodeJS.Timeout;
-
-    const checkProcessingStatus = async () => {
-      try {
-        const response = await fetch(`/api/process-pdf/status?chatId=${chatId}`);
-        const data = await response.json();
-        
-        setPollCount(prev => prev + 1);
-        
-        if (data.processingState === 'completed') {
-          // Clear polling when complete
-          clearInterval(pollInterval);
-          onComplete();
-        } else if (data.processingState === 'failed') {
-          // Clear polling on failure
-          clearInterval(pollInterval);
-          onError(data.errorMessage || 'Processing failed');
-        } else if (pollCount > 150) { // Stop after 5 minutes (150 * 2 seconds)
-          clearInterval(pollInterval);
-          onError('Processing timed out. Please try again.');
-        }
-      } catch (err) {
-        console.error('Error checking processing status:', err);
-      }
-    };
-
-    // Start polling when processing
-    if (isProcessing) {
-      setPollCount(0);
-      pollInterval = setInterval(checkProcessingStatus, 2000); // Poll every 2 seconds
-    }
-
-    return () => {
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
-    };
-  }, [chatId, isProcessing, onComplete, onError, pollCount]);
-} 
+  return processing;
+}

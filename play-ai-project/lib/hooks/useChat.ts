@@ -1,21 +1,66 @@
 import { useState, useCallback, useEffect } from 'react';
 import { useChatContext } from '../context/ChatContext';
 import { ChatMessage } from '../types/chat';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { fetchChatById, sendMessage as sendMessageApi } from '../chatService';
+import { queryKeys } from './useChats';
 
-export function useChat(chatId?: string) {
-  const { messages, addMessage, clearMessages, isLoading, setIsLoading, setMessages } = useChatContext();
+interface UseLegacyChatOptions {
+  useReactQuery?: boolean;
+}
+
+/**
+ * Enhanced chat hook that provides both React Query and legacy context support
+ * 
+ * This unified approach allows gradual migration to React Query while
+ * maintaining compatibility with existing code
+ */
+export function useChat(chatId?: string, options: UseLegacyChatOptions = {}) {
+  const { useReactQuery = false } = options;
+  const queryClient = useQueryClient();
+  
+  // Legacy context access
+  const { 
+    messages, 
+    addMessage, 
+    clearMessages, 
+    isLoading, 
+    setIsLoading, 
+    setMessages 
+  } = useChatContext();
+  
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch messages when chat ID changes
-  useEffect(() => {
-    if (chatId) {
-      fetchMessages(chatId);
-    } else {
-      clearMessages();
+  // React Query mutation for sending messages
+  const sendMessageMutation = useMutation({
+    mutationFn: ({ chatId, message }: { chatId: string; message: string }) => 
+      sendMessageApi(chatId, message),
+    onSuccess: (_, { chatId }) => {
+      // Invalidate chat queries to refresh data
+      queryClient.invalidateQueries({ queryKey: queryKeys.chat(chatId) });
+      
+      // If using legacy context, we need to fetch messages manually
+      if (!useReactQuery && chatId) {
+        fetchMessages(chatId);
+      }
+    },
+    onError: (err) => {
+      setError(err instanceof Error ? err.message : 'Failed to send message');
     }
-  }, [chatId]);
+  });
 
-  // Function to fetch messages for a specific chat
+  // Fetch messages when chat ID changes (for legacy context mode)
+  useEffect(() => {
+    if (!useReactQuery) {
+      if (chatId) {
+        fetchMessages(chatId);
+      } else {
+        clearMessages();
+      }
+    }
+  }, [chatId, useReactQuery]);
+
+  // Function to fetch messages for a specific chat (legacy)
   const fetchMessages = async (chatId: string) => {
     try {
       setIsLoading(true);
@@ -36,6 +81,7 @@ export function useChat(chatId?: string) {
     }
   };
 
+  // Unified sendMessage function that works with both approaches
   const sendMessage = useCallback(async (content: string) => {
     if (!chatId) {
       setError('No active chat');
@@ -44,6 +90,14 @@ export function useChat(chatId?: string) {
 
     try {
       setError(null);
+      
+      if (useReactQuery) {
+        // For React Query mode, use the mutation
+        // Add optimistic update if needed in the future
+        return sendMessageMutation.mutate({ chatId, message: content });
+      }
+      
+      // Legacy approach
       setIsLoading(true);
       
       // Add user message immediately for UI feedback
@@ -73,10 +127,22 @@ export function useChat(chatId?: string) {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
-      setIsLoading(false);
+      if (!useReactQuery) {
+        setIsLoading(false);
+      }
     }
-  }, [chatId, addMessage, setIsLoading]);
+  }, [chatId, addMessage, setIsLoading, useReactQuery, sendMessageMutation]);
 
+  // Return different interfaces based on the mode
+  if (useReactQuery) {
+    return {
+      sendMessage,
+      isLoading: sendMessageMutation.isPending,
+      error: error || (sendMessageMutation.error ? String(sendMessageMutation.error) : null),
+    };
+  }
+
+  // Legacy interface
   return {
     messages,
     sendMessage,
@@ -85,4 +151,4 @@ export function useChat(chatId?: string) {
     error,
     refreshMessages: chatId ? () => fetchMessages(chatId) : null,
   };
-} 
+}

@@ -2,29 +2,64 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ParsedContent, ProcessingState } from '@/lib/types/chat';
 
-interface UsePdfProcessingProps {
+// Move interfaces to the top to improve code organization
+export interface ProcessingMetadata {
+  pageCount?: number;
+  documentType?: string;
+  processingTimeMs?: number;
+  currentStep?: string;
+  progress?: number;
+  startTime?: number;
+  estimatedTimeRemainingMs?: number;
+}
+
+export interface ProcessingStatus {
+  processed: boolean;
+  processingState: ProcessingState;
+  status: string;
+  parsedContent: ParsedContent | null;
+  errorMessage: string | null;
+  metadata: ProcessingMetadata;
+}
+
+export interface UsePdfProcessingProps {
   chatId: string;
   pdfStorageUrl?: string;
   initialState?: ProcessingState;
   pollingInterval?: number;
   onSuccess?: () => void;
   onError?: (error: Error) => void;
+  simpleMode?: boolean; // For backwards compatibility with simpler implementations
 }
 
-interface ProcessingStatus {
-  processed: boolean;
-  processingState: ProcessingState;
-  status: string;
-  parsedContent: ParsedContent | null;
-  errorMessage: string | null;
-  metadata: {
-    pageCount?: number;
-    documentType?: string;
-    processingTimeMs?: number;
-    currentStep?: string;
-    progress?: number;
-    startTime?: number;
-    estimatedTimeRemainingMs?: number;
+/**
+ * Utility to calculate estimated completion time
+ */
+function calculateEstimatedTime(metadata: ProcessingMetadata, startTime: number | null): ProcessingMetadata {
+  if (!startTime) return metadata;
+  
+  // Use progress to estimate remaining time if available
+  if (metadata.progress !== undefined) {
+    const elapsedMs = Date.now() - startTime;
+    if (metadata.progress > 0) {
+      const totalEstimatedMs = (elapsedMs / metadata.progress) * 100;
+      const remainingMs = totalEstimatedMs - elapsedMs;
+      return {
+        ...metadata,
+        estimatedTimeRemainingMs: Math.max(1000, remainingMs) // at least 1 second
+      };
+    }
+  }
+  
+  // Fallback estimation based on page count
+  const pageCount = metadata.pageCount || 5;
+  const baseEstimate = Math.max(10000, pageCount * 2000); // min 10 seconds
+  const elapsedMs = Date.now() - startTime;
+  const remainingMs = Math.max(1000, baseEstimate - elapsedMs);
+  
+  return {
+    ...metadata,
+    estimatedTimeRemainingMs: remainingMs
   };
 }
 
@@ -39,47 +74,19 @@ export function usePdfProcessing({
   chatId,
   pdfStorageUrl: initialUrl,
   initialState = 'idle',
-  pollingInterval = 3000, // Poll more frequently (3s) for better UX
+  pollingInterval = 3000,
   onSuccess,
   onError,
+  simpleMode = false,
 }: UsePdfProcessingProps) {
   const queryClient = useQueryClient();
   const [processingState, setProcessingState] = useState<ProcessingState>(initialState);
   const [pdfStorageUrl, setPdfStorageUrl] = useState<string | undefined>(initialUrl);
-  const [processingMetadata, setProcessingMetadata] = useState<ProcessingStatus['metadata']>({});
+  const [processingMetadata, setProcessingMetadata] = useState<ProcessingMetadata>({});
   const [lastError, setLastError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const retryCountRef = useRef<number>(0);
-  
-  // Calculate estimated completion time
-  const updateEstimatedTime = useCallback((metadata: ProcessingStatus['metadata']) => {
-    if (!startTimeRef.current) return metadata;
-    
-    // Use progress to estimate remaining time if available
-    if (metadata.progress !== undefined) {
-      const elapsedMs = Date.now() - startTimeRef.current;
-      if (metadata.progress > 0) {
-        const totalEstimatedMs = (elapsedMs / metadata.progress) * 100;
-        const remainingMs = totalEstimatedMs - elapsedMs;
-        return {
-          ...metadata,
-          estimatedTimeRemainingMs: Math.max(1000, remainingMs) // at least 1 second
-        };
-      }
-    }
-    
-    // Fallback estimation based on page count
-    const pageCount = metadata.pageCount || 5;
-    const baseEstimate = Math.max(10000, pageCount * 2000); // min 10 seconds
-    const elapsedMs = Date.now() - startTimeRef.current;
-    const remainingMs = Math.max(1000, baseEstimate - elapsedMs);
-    
-    return {
-      ...metadata,
-      estimatedTimeRemainingMs: remainingMs
-    };
-  }, []);
   
   // Clean up function
   const cleanup = useCallback(() => {
@@ -252,7 +259,10 @@ export function usePdfProcessing({
       // Only update metadata if we have new data
       if (statusQuery.data.metadata) {
         // Enhance metadata with estimated time
-        const enhancedMetadata = updateEstimatedTime(statusQuery.data.metadata);
+        const enhancedMetadata = calculateEstimatedTime(
+          statusQuery.data.metadata, 
+          startTimeRef.current
+        );
         setProcessingMetadata(enhancedMetadata);
       }
       
@@ -266,7 +276,7 @@ export function usePdfProcessing({
         cleanup();
       }
     }
-  }, [statusQuery.data, updateEstimatedTime, cleanup]);
+  }, [statusQuery.data, cleanup]);
   
   // Clean up on unmount
   useEffect(() => {
@@ -279,6 +289,18 @@ export function usePdfProcessing({
   // Check if there was an error during processing
   const hasError = processingState === 'failed' || !!statusQuery.error;
   
+  // For simple mode users who just want the basics
+  if (simpleMode) {
+    return {
+      isProcessing: processingState === 'processing',
+      processingState,
+      error: hasError ? (lastError || 'Processing failed') : null,
+      checkStatus: statusQuery.refetch,
+      startProcessing: (url?: string) => processMutation.mutate(url)
+    };
+  }
+  
+  // Full-featured return value
   return {
     processingState,
     isPending: processingState === 'processing',

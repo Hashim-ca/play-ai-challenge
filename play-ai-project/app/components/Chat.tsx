@@ -16,6 +16,7 @@ import { useUpdateChat, useSendMessage } from "@/lib/hooks/useChats"
 import { usePdfProcessing } from "@/lib/hooks/usePdfProcessing"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { showNotification, announceToScreenReader } from "@/lib/utils/ui-helpers"
 
 interface ChatProps {
   chat: ChatType
@@ -68,25 +69,17 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
         if (overlay) {
           overlay.classList.add('hidden');
         }
-        // Show a notification that processing is complete
-        const notification = document.createElement('div');
-        notification.className = 'fixed bottom-4 right-4 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 px-4 py-2 rounded-lg shadow-lg z-50 animate-in slide-in-from-bottom';
-        notification.textContent = 'Document processed successfully!';
-        document.body.appendChild(notification);
         
-        // Remove notification after 3 seconds
-        setTimeout(() => {
-          if (document.body.contains(notification)) {
-            document.body.removeChild(notification);
-          }
-        }, 3000);
+        // Show a success notification
+        showNotification('Document processed successfully!', 'success');
         
         // Show parsed content automatically
         setShowParsedContent(true);
       }, 500);
     },
     onError: (error) => {
-      setError(`Failed to process PDF: ${error.message}`)
+      setError(`Failed to process PDF: ${error.message}`);
+      showNotification(`Processing failed: ${error.message}`, 'error');
     },
   })
 
@@ -185,12 +178,7 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
       }
       
       // Set a better user experience by showing we're working on it
-      const notification = document.createElement('div');
-      notification.setAttribute('aria-live', 'polite');
-      notification.classList.add('sr-only');
-      notification.textContent = 'PDF uploaded, now processing document...';
-      document.body.appendChild(notification);
-      setTimeout(() => document.body.removeChild(notification), 1000);
+      announceToScreenReader('PDF uploaded, now processing document...', 1000);
       
       // Generate the URL for displaying the PDF
       const url = getPublicPdfUrl(key)
@@ -260,18 +248,7 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
       pdfProcessing.startProcessing(urlToSend)
       
       // Announce processing for screen readers
-      const announcement = document.createElement('div');
-      announcement.setAttribute('aria-live', 'polite');
-      announcement.classList.add('sr-only');
-      announcement.textContent = 'Document processing has started. Please wait.';
-      document.body.appendChild(announcement);
-      
-      // Remove announcement after it's read
-      setTimeout(() => {
-        if (document.body.contains(announcement)) {
-          document.body.removeChild(announcement);
-        }
-      }, 3000);
+      announceToScreenReader('Document processing has started. Please wait.');
     } catch (err) {
       console.error("Error processing PDF:", err)
       setError(err instanceof Error ? err.message : "Failed to process PDF")
@@ -300,16 +277,7 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
       pdfProcessing.cancelProcessing()
       
       // Announce cancellation for screen readers
-      const announcement = document.createElement('div');
-      announcement.setAttribute('aria-live', 'polite');
-      announcement.classList.add('sr-only');
-      announcement.textContent = 'Document processing has been cancelled.';
-      document.body.appendChild(announcement);
-      
-      // Remove announcement after it's read
-      setTimeout(() => {
-        document.body.removeChild(announcement);
-      }, 3000);
+      announceToScreenReader('Document processing has been cancelled.');
     }
   }
 

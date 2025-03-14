@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { ProcessingState } from '@/lib/types/chat';
 
@@ -11,6 +11,7 @@ interface ProcessingOverlayProps {
     documentType?: string;
     processingTimeMs?: number;
   } | null;
+  onContinue?: () => void;
 }
 
 /**
@@ -25,20 +26,36 @@ export function ProcessingOverlay({
   message,
   errorMessage,
   metadata,
+  onContinue,
 }: ProcessingOverlayProps) {
-  if (state === 'idle') {
+  const [isVisible, setIsVisible] = useState(state !== 'idle');
+  const [currentState, setCurrentState] = useState(state);
+
+  // Update visibility and state when props change
+  useEffect(() => {
+    if (state === 'idle') {
+      // Fade out smoothly
+      const timer = setTimeout(() => {
+        setIsVisible(false);
+      }, 300); // Match transition duration
+      return () => clearTimeout(timer);
+    } else {
+      setIsVisible(true);
+      setCurrentState(state);
+    }
+  }, [state]);
+
+  if (!isVisible && state === 'idle') {
     return null;
   }
   
   const getContent = () => {
-    switch (state) {
+    switch (currentState) {
       case 'processing':
         return (
           <div className="flex flex-col items-center">
             <div className="relative w-20 h-20 mb-6">
-              {/* Outer spinning ring */}
               <Loader2 className="absolute inset-0 w-full h-full text-primary animate-spin" />
-              {/* Inner pulsing dot */}
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="w-10 h-10 bg-primary/20 rounded-full animate-pulse"></div>
               </div>
@@ -90,27 +107,32 @@ export function ProcessingOverlay({
   };
   
   // Only make the overlay fully blocking during processing
-  const isBlocking = state === 'processing';
+  const isBlocking = currentState === 'processing';
   
   return (
     <div 
-      className={`fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50 
-        ${isBlocking ? 'pointer-events-auto opacity-100' : 'pointer-events-none opacity-0'}`}
-      style={{ 
-        transition: 'opacity 0.3s ease-in-out',
-      }}
+      className={`fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50 processing-overlay transition-opacity duration-300
+        ${isVisible ? 'opacity-100' : 'opacity-0'}
+        ${isBlocking ? 'pointer-events-auto' : 'pointer-events-none'}`}
     >
-      <div className="bg-card p-8 rounded-lg shadow-xl border border-primary/20 pointer-events-auto max-w-md w-full">
+      <div className={`bg-card p-8 rounded-lg shadow-xl border border-primary/20 pointer-events-auto max-w-md w-full
+        ${currentState === 'completed' ? 'border-green-500/20' : ''}
+        ${currentState === 'failed' ? 'border-destructive/20' : ''}`}
+      >
         {getContent()}
         
-        {!isBlocking && (
+        {!isBlocking && currentState !== 'processing' && (
           <div className="mt-6 flex justify-center">
             <button 
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
               onClick={() => {
-                // Just hide the overlay by adding a class
-                const overlay = document.querySelector('.processing-overlay');
-                overlay?.classList.add('hidden');
+                // Use either the provided callback or handle internally
+                if (onContinue) {
+                  onContinue();
+                } else {
+                  setIsVisible(false);
+                  setTimeout(() => setCurrentState('idle'), 300);
+                }
               }}
             >
               Continue
