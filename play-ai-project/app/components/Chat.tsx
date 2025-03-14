@@ -17,6 +17,7 @@ import { usePdfProcessing } from "@/lib/hooks/usePdfProcessing"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { showNotification, announceToScreenReader } from "@/lib/utils/ui-helpers"
+import { TextToSpeech } from "./ui/text-to-speech"
 
 // Types
 interface ChatProps {
@@ -459,12 +460,26 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
 
         {/* Footer */}
         <CardFooter className="border-t p-4 bg-background/95 backdrop-blur-sm flex-none">
-          <ChatInput 
-            message={message}
-            setMessage={setMessage}
-            onSendMessage={handleSendMessage}
-            isDisabled={isInputDisabled}
-          />
+          <div className="w-full flex flex-col gap-3">
+            <ChatInput 
+              message={message}
+              setMessage={setMessage}
+              onSendMessage={handleSendMessage}
+              isDisabled={isInputDisabled}
+            />
+            
+            {chat.messages && chat.messages.length > 0 && (
+              <div className="flex items-center justify-end">
+                <TextToSpeech 
+                  text={chat.messages[chat.messages.length - 1].content} 
+                  fullText={chat.messages
+                    .filter(msg => msg.role === "assistant")
+                    .map(msg => msg.content)
+                    .join('\n\n')}
+                />
+              </div>
+            )}
+          </div>
         </CardFooter>
       </Card>
     </>

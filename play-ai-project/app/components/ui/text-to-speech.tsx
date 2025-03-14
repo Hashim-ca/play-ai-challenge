@@ -2,7 +2,9 @@
 
 import { Play, Pause, ListMusic } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useTextToSpeech } from "@/lib/hooks/useTextToSpeech"; // Adjust path as needed
+import { Badge } from "@/components/ui/badge";
+import { useTextToSpeech } from "@/lib/hooks/useTextToSpeech";
+import { TTSSettingsDialog } from "./tts-settings";
 
 interface TextToSpeechProps {
   text: string | null;
@@ -11,8 +13,16 @@ interface TextToSpeechProps {
 
 export function TextToSpeech({ text, fullText }: TextToSpeechProps) {
   // Use our custom hook that encapsulates all the TTS logic.
-  const { playText, stopPlayback, isPlaying, isLoading, error, queue } =
-    useTextToSpeech();
+  const { 
+    playText, 
+    stopPlayback, 
+    isPlaying, 
+    isLoading, 
+    error, 
+    queue, 
+    settings,
+    updateSettings
+  } = useTextToSpeech();
 
   // Toggle playback for selected text.
   const handlePlaySelected = () => {
@@ -34,6 +44,21 @@ export function TextToSpeech({ text, fullText }: TextToSpeechProps) {
     }
   };
 
+  // Get the name of the current voice
+  const getVoiceName = () => {
+    const voiceValue = settings.voice;
+    const voices = [
+      { name: 'Angelo', value: 's3://voice-cloning-zero-shot/baf1ef41-36b6-428c-9bdf-50ba54682bd8/original/manifest.json' },
+      { name: 'Deedee', value: 's3://voice-cloning-zero-shot/e040bd1b-f190-4bdb-83f0-75ef85b18f84/original/manifest.json' },
+      { name: 'Jennifer', value: 's3://voice-cloning-zero-shot/801a663f-efd0-4254-98d0-5c175514c3e8/jennifer/manifest.json' },
+      { name: 'Briggs', value: 's3://voice-cloning-zero-shot/71cdb799-1e03-41c6-8a05-f7cd55134b0b/original/manifest.json' },
+      { name: 'Samara', value: 's3://voice-cloning-zero-shot/90217770-a480-4a91-b1ea-df00f4d4c29d/original/manifest.json' }
+    ];
+    
+    const voice = voices.find(v => v.value === voiceValue);
+    return voice ? voice.name : 'Voice';
+  };
+
   return (
     <div className="flex flex-col gap-2 mt-2">
       {/* Now Playing banner */}
@@ -46,6 +71,9 @@ export function TextToSpeech({ text, fullText }: TextToSpeechProps) {
             />
           </svg>
           <span>Now Playing</span>
+          <Badge variant="outline" className="ml-1 px-1.5 py-0 h-4 text-[10px]">
+            {getVoiceName()} • {settings.speed}x
+          </Badge>
         </div>
       )}
 
@@ -90,6 +118,12 @@ export function TextToSpeech({ text, fullText }: TextToSpeechProps) {
             {isPlaying ? "Stop" : "Read Full Document"}
           </Button>
         )}
+
+        {/* TTS Settings Dialog */}
+        <TTSSettingsDialog 
+          settings={settings}
+          onSettingsChange={updateSettings}
+        />
 
         {/* Display queue status if there are queued items */}
         {queue.length > 0 && (
