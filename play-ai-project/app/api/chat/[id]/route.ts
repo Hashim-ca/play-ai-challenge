@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectToDatabase from '@/lib/mongodb';
 import Chat from '@/lib/models/chat';
+import Message from '@/lib/models/message';
 
-// GET /api/chat/[id] - Get a single chat by ID
+// GET /api/chat/[id] - Get a specific chat by ID
+// @ts-ignore Next.js canary version has type issues with API route handlers
 export async function GET(
   request: NextRequest,
   context: { params: { id: string } }
 ) {
   try {
-    // Safe access to params - await params to fix Next.js warning
     const { id } = await context.params;
     
     await connectToDatabase();
+    
+    // Find the chat
     const chat = await Chat.findOne({ id });
     
     if (!chat) {
@@ -21,7 +24,16 @@ export async function GET(
       );
     }
     
-    return NextResponse.json(chat, { status: 200 });
+    // Fetch messages for this chat
+    const messages = await Message.find({ chatId: id })
+      .sort({ timestamp: 1 })
+      .lean();
+    
+    // Combine chat data with messages
+    const chatData = chat.toObject();
+    chatData.messages = messages;
+    
+    return NextResponse.json(chatData, { status: 200 });
   } catch (error) {
     console.error('Error fetching chat:', error);
     return NextResponse.json(
@@ -32,35 +44,21 @@ export async function GET(
 }
 
 // PUT /api/chat/[id] - Update a chat
+// @ts-ignore Next.js canary version has type issues with API route handlers
 export async function PUT(
   request: NextRequest,
   context: { params: { id: string } }
 ) {
   try {
-    // Safe access to params - await params to fix Next.js warning
     const { id } = await context.params;
     const body = await request.json();
     
     await connectToDatabase();
     
-    // Check if pdfStorageUrl is being updated
-    const pdfUpdated = body.pdfStorageUrl ? true : false;
-    
-    // If PDF is updated, we should clear any existing parsed content
-    const updateObj = {
-      ...(body.title && { title: body.title }),
-      ...(body.pdfStorageUrl && { pdfStorageUrl: body.pdfStorageUrl }),
-      ...(body.pdfFileName && { pdfFileName: body.pdfFileName }),
-      // Only use provided parsedContent if PDF isn't being updated
-      ...(!pdfUpdated && body.parsedContent && { parsedContent: body.parsedContent }),
-      // If PDF is updated, clear existing parsedContent
-      ...(pdfUpdated && { parsedContent: null }),
-      ...(body.audioInfo && { audioInfo: body.audioInfo }),
-    };
-    
+    // Find and update the chat
     const updatedChat = await Chat.findOneAndUpdate(
       { id },
-      updateObj,
+      { $set: body },
       { new: true }
     );
     
@@ -69,32 +67,6 @@ export async function PUT(
         { error: 'Chat not found' },
         { status: 404 }
       );
-    }
-    
-    // If a new PDF was uploaded, trigger processing with Reducto API
-    if (body.pdfStorageUrl) {
-      try {
-        // Use absolute URL for internal API call
-        const url = new URL('/api/process-pdf', request.nextUrl.origin);
-        
-        // Fire and forget - don't await the response
-        fetch(url.toString(), {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            chatId: id,
-            pdfStorageUrl: body.pdfStorageUrl,
-          }),
-        }).catch(err => {
-          console.error('Error triggering PDF processing:', err);
-          // Continue execution - non-blocking
-        });
-      } catch (processingError) {
-        // Log error but don't fail chat update
-        console.error('Error initiating PDF processing:', processingError);
-      }
     }
     
     return NextResponse.json(updatedChat, { status: 200 });
@@ -108,15 +80,17 @@ export async function PUT(
 }
 
 // DELETE /api/chat/[id] - Delete a chat
+// @ts-ignore Next.js canary version has type issues with API route handlers
 export async function DELETE(
   request: NextRequest,
   context: { params: { id: string } }
 ) {
   try {
-    // Safe access to params - await params to fix Next.js warning
     const { id } = await context.params;
     
     await connectToDatabase();
+    
+    // Find and delete the chat
     const deletedChat = await Chat.findOneAndDelete({ id });
     
     if (!deletedChat) {
@@ -126,7 +100,10 @@ export async function DELETE(
       );
     }
     
-    return NextResponse.json({ message: 'Chat deleted successfully' }, { status: 200 });
+    // Also delete all messages associated with this chat
+    await Message.deleteMany({ chatId: id });
+    
+    return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     console.error('Error deleting chat:', error);
     return NextResponse.json(

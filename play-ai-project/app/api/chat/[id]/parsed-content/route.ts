@@ -8,7 +8,8 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const chatId = params.id;
+    // Await params before accessing its properties
+    const { id: chatId } = await params;
     
     if (!chatId) {
       return NextResponse.json(

@@ -23,6 +23,9 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isPlayingFullText, setIsPlayingFullText] = useState(false)
+  const [playbackRate, setPlaybackRate] = useState(1)
+  const [volume, setVolume] = useState(1)
+  const [showSettings, setShowSettings] = useState(false)
   // Add a ref to track the current selected text for cancellation purposes
   const currentTextRef = useRef<string | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -217,11 +220,29 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
       // Set audio source and play
       audioRef.current.src = url
       audioRef.current.muted = isMuted
+      audioRef.current.volume = volume
+      audioRef.current.playbackRate = playbackRate
+      
+      // Add better error handling for mobile devices
+      audioRef.current.onerror = (e) => {
+        console.error('Audio loading error:', e)
+        setError('Audio could not be loaded. Try again or check your connection.')
+        setIsLoading(false)
+        setIsPlaying(false)
+      }
       
       // Play audio - wrap in try/catch since play() can fail
       try {
         await audioRef.current.play()
         setIsPlaying(true)
+        
+        // Announce to screen readers
+        const announcement = document.createElement('div')
+        announcement.setAttribute('aria-live', 'polite')
+        announcement.classList.add('sr-only')
+        announcement.textContent = `Playing audio${isPlayingFullText ? ' for full document' : ''}`
+        document.body.appendChild(announcement)
+        setTimeout(() => document.body.removeChild(announcement), 1000)
       } catch (playError) {
         console.error('Play error:', playError)
         // This is likely a user interaction issue - browsers require user gesture to play audio
@@ -310,6 +331,24 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
     }
     setIsMuted(!isMuted)
   }
+  
+  const changePlaybackRate = (rate: number) => {
+    setPlaybackRate(rate)
+    if (audioRef.current) {
+      audioRef.current.playbackRate = rate
+    }
+  }
+  
+  const changeVolume = (vol: number) => {
+    setVolume(vol)
+    if (audioRef.current) {
+      audioRef.current.volume = vol
+    }
+  }
+  
+  const toggleSettings = () => {
+    setShowSettings(!showSettings)
+  }
 
   if (!text) {
     return null
@@ -327,7 +366,7 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
 
   return (
     <div className="flex flex-col gap-2 mt-2">
-      <div className="flex items-center gap-2 tts-controls">
+      <div className="flex flex-wrap items-center gap-2 tts-controls">
         <Button
           variant="outline"
           size="sm"
@@ -335,6 +374,7 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
           disabled={!text}
           className={`h-8 w-8 p-0 ${isLoading && !isPlayingFullText ? 'bg-blue-50 dark:bg-blue-950' : ''}`}
           title={isLoading && !isPlayingFullText ? "Loading audio..." : isCurrentTextPlaying ? "Pause" : "Play"}
+          aria-label={isLoading && !isPlayingFullText ? "Loading audio..." : isCurrentTextPlaying ? "Pause" : "Play"}
         >
           {isLoading && !isPlayingFullText ? (
             <div className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -343,7 +383,6 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
           ) : (
             <Play className="h-4 w-4" />
           )}
-          <span className="sr-only">{isCurrentTextPlaying ? "Pause" : "Play"}</span>
         </Button>
         
         <Button
@@ -353,13 +392,40 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
           disabled={isLoading || (!isPlaying && !audioRef.current?.src)}
           className="h-8 w-8 p-0"
           title={isMuted ? "Unmute" : "Mute"}
+          aria-label={isMuted ? "Unmute" : "Mute"}
         >
           {isMuted ? (
             <VolumeX className="h-4 w-4" />
           ) : (
             <Volume2 className="h-4 w-4" />
           )}
-          <span className="sr-only">{isMuted ? "Unmute" : "Mute"}</span>
+        </Button>
+        
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={toggleSettings}
+          className="h-8 w-8 p-0"
+          title="Audio settings"
+          aria-label="Audio settings"
+          aria-expanded={showSettings}
+          aria-controls="audio-settings-panel"
+        >
+          <svg 
+            xmlns="http://www.w3.org/2000/svg" 
+            width="16" 
+            height="16" 
+            viewBox="0 0 24 24" 
+            fill="none" 
+            stroke="currentColor" 
+            strokeWidth="2" 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            className="h-4 w-4"
+          >
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
         </Button>
         
         {audioQueue.length > 0 && (
@@ -369,32 +435,121 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
             onClick={() => setShowQueueDetails(!showQueueDetails)}
             className="h-8 px-2 flex items-center gap-1 text-xs"
             title="Toggle queue details"
+            aria-label={`Audio queue (${audioQueue.length} items)`}
+            aria-expanded={showQueueDetails}
+            aria-controls="audio-queue-panel"
           >
             <ListMusic className="h-3 w-3" />
             <span className="font-medium">{audioQueue.length}</span>
-            <span className="sr-only">in queue</span>
           </Button>
         )}
         
         {queueNotification && (
-          <span className="text-xs text-green-600 animate-pulse font-medium">{queueNotification}</span>
+          <span 
+            className="text-xs text-green-600 animate-pulse font-medium"
+            aria-live="polite"
+          >
+            {queueNotification}
+          </span>
         )}
         
         {error && !queueNotification && (
-          <span className="text-xs text-destructive">{error}</span>
+          <span 
+            className="text-xs text-destructive"
+            aria-live="assertive"
+          >
+            {error}
+          </span>
         )}
       </div>
       
+      {/* Audio settings panel */}
+      {showSettings && (
+        <div 
+          id="audio-settings-panel"
+          className="mt-2 p-3 bg-muted/30 rounded-md text-xs border border-border"
+        >
+          <div className="font-medium mb-2">Audio Settings</div>
+          
+          <div className="mb-3">
+            <label htmlFor="playback-speed" className="block mb-1">Playback Speed: {playbackRate}x</label>
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">0.5x</span>
+              <input
+                id="playback-speed"
+                type="range"
+                min="0.5"
+                max="2"
+                step="0.25"
+                value={playbackRate}
+                onChange={(e) => changePlaybackRate(parseFloat(e.target.value))}
+                className="flex-1 h-1.5 bg-muted rounded-full appearance-none cursor-pointer"
+                aria-label="Playback speed"
+              />
+              <span className="text-muted-foreground">2x</span>
+            </div>
+          </div>
+          
+          <div>
+            <label htmlFor="volume-control" className="block mb-1">Volume: {Math.round(volume * 100)}%</label>
+            <div className="flex items-center gap-2">
+              <VolumeX className="h-3 w-3 text-muted-foreground" />
+              <input
+                id="volume-control"
+                type="range"
+                min="0"
+                max="1"
+                step="0.05"
+                value={volume}
+                onChange={(e) => changeVolume(parseFloat(e.target.value))}
+                className="flex-1 h-1.5 bg-muted rounded-full appearance-none cursor-pointer"
+                aria-label="Volume"
+              />
+              <Volume2 className="h-3 w-3 text-muted-foreground" />
+            </div>
+          </div>
+        </div>
+      )}
+      
       {/* Queue details */}
       {showQueueDetails && audioQueue.length > 0 && (
-        <div className="mt-2 p-2 bg-muted/30 rounded-md text-xs">
-          <div className="font-medium mb-1">Audio Queue:</div>
-          <ol className="pl-5 list-decimal">
+        <div 
+          id="audio-queue-panel"
+          className="mt-2 p-3 bg-muted/30 rounded-md text-xs border border-border"
+        >
+          <div className="flex items-center justify-between mb-1">
+            <div className="font-medium">Audio Queue</div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setAudioQueue([])}
+              className="h-6 px-1.5 text-[10px]"
+              aria-label="Clear queue"
+            >
+              Clear All
+            </Button>
+          </div>
+          <ol className="pl-5 list-decimal max-h-40 overflow-y-auto">
             {audioQueue.map((item, index) => (
-              <li key={item.id} className="mb-1">
-                {item.isFullText ? "Full document" : truncateText(item.text)}
-                {index === 0 && isPlaying && <span className="ml-2 text-green-600 font-medium">(Now Playing)</span>}
-                {index === 0 && !isPlaying && <span className="ml-2 text-blue-600 font-medium">(Next Up)</span>}
+              <li key={item.id} className="mb-1 flex justify-between items-center">
+                <div className="truncate max-w-[200px]">
+                  {item.isFullText ? "Full document" : truncateText(item.text)}
+                  {index === 0 && isPlaying && <span className="ml-2 text-green-600 font-medium">(Playing)</span>}
+                  {index === 0 && !isPlaying && <span className="ml-2 text-blue-600 font-medium">(Next)</span>}
+                </div>
+                {index > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setAudioQueue(prev => prev.filter((_item, i) => i !== index))
+                    }}
+                    className="h-5 w-5 p-0"
+                    aria-label="Remove from queue"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
               </li>
             ))}
           </ol>
@@ -410,6 +565,7 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
             disabled={!fullText} 
             className={`text-xs h-8 flex items-center ${isLoading && isPlayingFullText ? 'bg-blue-50 dark:bg-blue-950' : ''}`}
             title={isLoading && isPlayingFullText ? "Loading audio..." : isFullTextPlaying ? "Pause" : "Read Full Document"}
+            aria-label={isLoading && isPlayingFullText ? "Loading audio..." : isFullTextPlaying ? "Pause" : "Read Full Document"}
           >
             {isLoading && isPlayingFullText ? (
               <div className="h-4 w-4 mr-2 animate-spin rounded-full border-2 border-current border-t-transparent" />
@@ -425,10 +581,18 @@ export function TextToSpeech({ text, apiKey, fullText }: TextToSpeechProps) {
       
       {/* Status indicator */}
       {isLoading && (
-        <div className="text-xs text-muted-foreground mt-1">
+        <div 
+          className="text-xs text-muted-foreground mt-1"
+          aria-live="polite"
+        >
           Loading audio... {isPlayingFullText ? "(full document)" : "(selected text)"}
         </div>
       )}
+      
+      {/* Hidden screen reader content */}
+      <div className="sr-only" aria-live="polite">
+        {isPlaying ? `Playing audio${isPlayingFullText ? ' of full document' : ' of selected text'} at speed ${playbackRate}x` : ''}
+      </div>
     </div>
   )
 }

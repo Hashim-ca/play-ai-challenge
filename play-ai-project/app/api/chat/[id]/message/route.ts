@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { v4 as uuidv4 } from 'uuid';
 import connectToDatabase from '@/lib/mongodb';
 import Chat from '@/lib/models/chat';
+import Message from '@/lib/models/message';
 
 // POST /api/chat/[id]/message - Send a message to the chat
 // @ts-ignore Next.js canary version has type issues with API route handlers
@@ -63,25 +64,27 @@ export async function POST(
     
     // Create the user message
     const userMessageId = uuidv4();
-    const userMessage = {
+    const userMessage = new Message({
       id: userMessageId,
+      chatId: id,
       content: message,
       role: 'user',
       timestamp: new Date(),
-    };
+    });
     
     // Create the assistant message
     const assistantMessageId = uuidv4();
-    const assistantMessage = {
+    const assistantMessage = new Message({
       id: assistantMessageId,
+      chatId: id,
       content: simulatedResponse,
       role: 'assistant',
       timestamp: new Date(),
-    };
+    });
     
-    // Add messages to the chat
-    chat.messages.push(userMessage, assistantMessage);
-    await chat.save();
+    // Save both messages to the database
+    await userMessage.save();
+    await assistantMessage.save();
     
     return NextResponse.json({ 
       response: simulatedResponse,

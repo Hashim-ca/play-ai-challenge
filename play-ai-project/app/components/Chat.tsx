@@ -60,6 +60,30 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
     onSuccess: () => {
       // Refresh chat data to get the updated parsedContentId
       fetchChatUpdate()
+      
+      // Auto-show the parsed content when processing completes
+      setTimeout(() => {
+        // First make sure the processing overlay is hidden
+        const overlay = document.querySelector('.processing-overlay');
+        if (overlay) {
+          overlay.classList.add('hidden');
+        }
+        // Show a notification that processing is complete
+        const notification = document.createElement('div');
+        notification.className = 'fixed bottom-4 right-4 bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-100 px-4 py-2 rounded-lg shadow-lg z-50 animate-in slide-in-from-bottom';
+        notification.textContent = 'Document processed successfully!';
+        document.body.appendChild(notification);
+        
+        // Remove notification after 3 seconds
+        setTimeout(() => {
+          if (document.body.contains(notification)) {
+            document.body.removeChild(notification);
+          }
+        }, 3000);
+        
+        // Show parsed content automatically
+        setShowParsedContent(true);
+      }, 500);
     },
     onError: (error) => {
       setError(`Failed to process PDF: ${error.message}`)
@@ -153,7 +177,22 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
 
   const handleFileUpload = async (key: string, fileName: string) => {
     try {
-      // First, generate the URL for displaying the PDF
+      // First, manually set the processing state immediately to show overlay
+      pdfProcessing.setPdfStorageUrl(key);
+      // Force the processing state to "processing" immediately
+      if (typeof pdfProcessing.setProcessingState === 'function') {
+        pdfProcessing.setProcessingState('processing');
+      }
+      
+      // Set a better user experience by showing we're working on it
+      const notification = document.createElement('div');
+      notification.setAttribute('aria-live', 'polite');
+      notification.classList.add('sr-only');
+      notification.textContent = 'PDF uploaded, now processing document...';
+      document.body.appendChild(notification);
+      setTimeout(() => document.body.removeChild(notification), 1000);
+      
+      // Generate the URL for displaying the PDF
       const url = getPublicPdfUrl(key)
       setPdfUrl(url)
 
@@ -171,7 +210,10 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
       }
 
       // After the chat is updated, start processing the PDF
-      processPdf(key)
+      // Adding a small delay to ensure the UI updates properly first
+      setTimeout(() => {
+        processPdf(key)
+      }, 100);
     } catch (err) {
       console.error("Error updating chat with PDF:", err)
       setError("Failed to update chat with PDF")
@@ -181,7 +223,23 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
   const processPdf = async (pdfUrl: string) => {
     try {
       setError(null)
+      
+      // Make sure we're showing the processing state in the UI
+      if (typeof pdfProcessing.setProcessingState === 'function') {
+        pdfProcessing.setProcessingState('processing');
+      }
+      
+      // Show the processing tab on mobile for better UX
+      if (window.innerWidth < 768) {
+        setActiveTab("chat") // Keep on chat tab to show processing overlay
+      } else {
+        // On desktop, show the split view for better visual feedback
+        setActiveTab("split")
+      }
 
+      // Hide any previous parsed content view during processing
+      setShowParsedContent(false)
+      
       // Extract the key if it's a proxy URL
       let urlToSend = pdfUrl
       if (pdfUrl.includes("/api/proxy/pdf?key=")) {
@@ -191,18 +249,67 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
         }
       }
 
+      // Make sure processing overlay is visible
+      const overlay = document.querySelector('.processing-overlay');
+      if (overlay && overlay.classList.contains('hidden')) {
+        overlay.classList.remove('hidden');
+      }
+      
       // Update the PDF URL in the hook and start processing
       pdfProcessing.setPdfStorageUrl(urlToSend)
       pdfProcessing.startProcessing(urlToSend)
+      
+      // Announce processing for screen readers
+      const announcement = document.createElement('div');
+      announcement.setAttribute('aria-live', 'polite');
+      announcement.classList.add('sr-only');
+      announcement.textContent = 'Document processing has started. Please wait.';
+      document.body.appendChild(announcement);
+      
+      // Remove announcement after it's read
+      setTimeout(() => {
+        if (document.body.contains(announcement)) {
+          document.body.removeChild(announcement);
+        }
+      }, 3000);
     } catch (err) {
       console.error("Error processing PDF:", err)
       setError(err instanceof Error ? err.message : "Failed to process PDF")
+      
+      // Set state to failed if there's an error
+      if (typeof pdfProcessing.setProcessingState === 'function') {
+        pdfProcessing.setProcessingState('failed');
+      }
     }
   }
 
   const retryProcessing = () => {
     if (chat.pdfStorageUrl) {
-      processPdf(chat.pdfStorageUrl)
+      // Use the retry function from the hook if available, otherwise reprocess
+      if (typeof pdfProcessing.retry === 'function') {
+        pdfProcessing.retry()
+      } else {
+        processPdf(chat.pdfStorageUrl)
+      }
+    }
+  }
+  
+  const cancelProcessing = () => {
+    // Call the cancelProcessing function from the hook if available
+    if (typeof pdfProcessing.cancelProcessing === 'function') {
+      pdfProcessing.cancelProcessing()
+      
+      // Announce cancellation for screen readers
+      const announcement = document.createElement('div');
+      announcement.setAttribute('aria-live', 'polite');
+      announcement.classList.add('sr-only');
+      announcement.textContent = 'Document processing has been cancelled.';
+      document.body.appendChild(announcement);
+      
+      // Remove announcement after it's read
+      setTimeout(() => {
+        document.body.removeChild(announcement);
+      }, 3000);
     }
   }
 
@@ -260,6 +367,8 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
         state={pdfProcessing.processingState}
         errorMessage={pdfProcessing.errorMessage}
         metadata={pdfProcessing.metadata}
+        onCancel={cancelProcessing}
+        onRetry={retryProcessing}
       />
 
       <Card className="h-full w-full flex flex-col border-0 rounded-none">

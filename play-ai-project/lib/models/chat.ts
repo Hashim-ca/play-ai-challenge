@@ -1,14 +1,5 @@
 import mongoose, { Schema } from 'mongoose';
 
-const MessageSchema = new Schema(
-  {
-    id: { type: String, required: true, unique: true },
-    content: { type: String, required: true },
-    role: { type: String, required: true, enum: ['user', 'assistant'] },
-    timestamp: { type: Date, default: Date.now },
-  }
-);
-
 const ChatSchema = new Schema(
   {
     id: { type: String, required: true, unique: true },
@@ -27,7 +18,8 @@ const ChatSchema = new Schema(
       default: 'idle'
     },
     audioInfo: { type: String },
-    messages: [MessageSchema],
+    // We no longer store messages directly in the chat document
+    // Instead, they will be queried from the Message collection
   },
   {
     timestamps: true,
@@ -35,7 +27,8 @@ const ChatSchema = new Schema(
 );
 
 // Add indexes for faster queries
-ChatSchema.index({ id: 1 });
+// Note: We've manually dropped the previous 'messages.id_1' index to prevent
+// the "E11000 duplicate key error collection: test.chats index: messages.id_1" error
 ChatSchema.index({ createdAt: -1 });
 
 // Check if the model is already defined to prevent overwriting during hot reloads
