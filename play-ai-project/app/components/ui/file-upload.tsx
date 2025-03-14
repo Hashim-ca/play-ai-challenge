@@ -1,8 +1,8 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { 
-  Upload, FileX, FileCheck, Loader2, RefreshCw, 
-  FileUp, Wifi, WifiOff, AlertCircle, Eye
+  Upload, FileX, FileCheck, RefreshCw, 
+  FileUp, WifiOff, AlertCircle, Eye
 } from 'lucide-react';
 import { useMediaQuery } from '@/app/hooks/use-media-query';
 

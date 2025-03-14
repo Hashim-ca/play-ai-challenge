@@ -358,7 +358,7 @@ export function Chat({ chat, onChatUpdate }: ChatProps) {
                       disabled={pdfProcessing.isPending}
                     >
                       <FileJson className="h-4 w-4" />
-                      <span className="hidden sm:inline">{showParsedContent ? "Hide Analysis" : "View Analysis"}</span>
+                      <span className="hidden sm:inline">{showParsedContent ? "Hide raw content" : "View raw content"}</span>
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent>

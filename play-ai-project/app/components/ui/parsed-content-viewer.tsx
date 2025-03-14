@@ -2,32 +2,62 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { 
-  File, X, ChevronDown, ChevronUp, Download, 
-  FileText, ListTree, Info, AlertCircle, Copy as CopyIcon
+  File, X, ChevronDown, ChevronUp, Download, Copy as CopyIcon, AlertCircle
 } from 'lucide-react';
+
+// Define interfaces for the data structures to fix linter errors
+interface ParsedContentPage {
+  text?: string;
+  // Add other page properties if needed
+}
+
+interface ParsedContentResult {
+  pages?: ParsedContentPage[];
+  // Add other result properties if needed
+}
+
+interface ParsedContentData {
+  result?: ParsedContentResult;
+  processing_time?: number;
+  options?: {
+    extraction_mode?: string;
+  };
+  // Add other data properties if needed
+}
+
+interface DocumentMetadata {
+  pageCount: number;
+  documentType: string;
+  processingTimeMs?: number;
+}
 
 interface ParsedContentViewerProps {
   chatId: string;
   onClose: () => void;
+  isVisible?: boolean; // Add prop to control visibility
 }
 
 /**
  * Component for viewing parsed content from a document
  * 
- * Displays the processed document content with different views including
- * text view, structure view, and raw JSON view.
+ * A simplified viewer that only shows raw JSON content.
  */
-export function ParsedContentViewer({ chatId, onClose }: ParsedContentViewerProps) {
+export function ParsedContentViewer({ 
+  chatId, 
+  onClose,
+  isVisible = true // Changed from false to true to make it visible by default
+}: ParsedContentViewerProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [parsedContent, setParsedContent] = useState<any>(null);
+  const [parsedContent, setParsedContent] = useState<ParsedContentData | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [activeTab, setActiveTab] = useState('text');
-  const [metadata, setMetadata] = useState<any>(null);
+  const [metadata, setMetadata] = useState<DocumentMetadata | null>(null);
 
+  // Don't fetch if not visible
   useEffect(() => {
+    if (!isVisible) return;
+    
     const fetchParsedContent = async () => {
       try {
         setLoading(true);
@@ -60,7 +90,10 @@ export function ParsedContentViewer({ chatId, onClose }: ParsedContentViewerProp
     };
     
     fetchParsedContent();
-  }, [chatId]);
+  }, [chatId, isVisible]);
+
+  // If not visible, return null
+  if (!isVisible) return null;
 
   const downloadAsJson = () => {
     if (!parsedContent) return;
@@ -84,137 +117,6 @@ export function ParsedContentViewer({ chatId, onClose }: ParsedContentViewerProp
     }).catch(err => {
       console.error('Failed to copy content: ', err);
     });
-  };
-
-  // Helper function to render text content tab
-  const getTextContent = () => {
-    if (!parsedContent || !parsedContent.result || !parsedContent.result.pages) {
-      return 'No text content available';
-    }
-    
-    // Extract just the text content from pages
-    const pages = parsedContent.result.pages || [];
-    return pages.map((page: any, index: number) => {
-      // Get text content for the page
-      const pageContent = page.text || '';
-      
-      return (
-        <div key={`page-${index}`} className="mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <h3 className="text-base font-medium">Page {index + 1}</h3>
-            <Button 
-              variant="ghost" 
-              size="sm"
-              onClick={() => copyToClipboard(pageContent)}
-              className="h-7 px-2"
-            >
-              <CopyIcon className="h-3.5 w-3.5 mr-1" />
-              Copy
-            </Button>
-          </div>
-          <div className="bg-muted/50 rounded-md p-3 text-sm whitespace-pre-wrap">
-            {pageContent || <span className="text-muted-foreground italic">No text content on this page</span>}
-          </div>
-        </div>
-      );
-    });
-  };
-  
-  // Helper function to render structure tab
-  const getStructureContent = () => {
-    if (!parsedContent || !parsedContent.result) {
-      return 'No structure available';
-    }
-    
-    return (
-      <div className="p-4">
-        <div className="mb-6">
-          <h3 className="text-base font-medium mb-2">Document Structure</h3>
-          <p className="text-sm text-muted-foreground mb-4">
-            Hierarchical representation of the document content
-          </p>
-        </div>
-        
-        <div className="border rounded-md p-4 text-sm">
-          <pre className="text-xs font-mono">
-            {JSON.stringify(parsedContent.result.structure || {}, null, 2)}
-          </pre>
-        </div>
-      </div>
-    );
-  };
-  
-  // Helper function to render info/metadata tab
-  const getMetadataContent = () => {
-    return (
-      <div className="p-4">
-        <h3 className="text-base font-medium mb-4">Document Information</h3>
-        
-        <div className="grid grid-cols-2 gap-4">
-          <div className="col-span-2 md:col-span-1">
-            <div className="border rounded-md p-4">
-              <h4 className="text-sm font-medium mb-2">Document Properties</h4>
-              <dl className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Pages</dt>
-                  <dd>{parsedContent?.result?.pages?.length || 'Unknown'}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Document Type</dt>
-                  <dd>{metadata?.documentType || 'PDF'}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Processing Time</dt>
-                  <dd>{metadata?.processingTimeMs ? `${(metadata.processingTimeMs / 1000).toFixed(1)}s` : 'Unknown'}</dd>
-                </div>
-              </dl>
-            </div>
-          </div>
-          
-          <div className="col-span-2 md:col-span-1">
-            <div className="border rounded-md p-4">
-              <h4 className="text-sm font-medium mb-2">Content Summary</h4>
-              <dl className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Tables</dt>
-                  <dd>{parsedContent?.result?.tables?.length || 0}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Images</dt>
-                  <dd>{parsedContent?.result?.images?.length || 0}</dd>
-                </div>
-                <div className="flex justify-between">
-                  <dt className="text-muted-foreground">Extraction Mode</dt>
-                  <dd>{parsedContent?.options?.extraction_mode || 'Unknown'}</dd>
-                </div>
-              </dl>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-  
-  // Helper function to render raw JSON tab
-  const getRawContent = () => {
-    return (
-      <div className="relative">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => copyToClipboard(JSON.stringify(parsedContent, null, 2))}
-          className="absolute top-2 right-2 z-10"
-        >
-          <CopyIcon className="h-4 w-4 mr-1" />
-          Copy
-        </Button>
-        <ScrollArea className="h-[400px] w-full">
-          <pre className="p-4 text-xs font-mono whitespace-pre-wrap overflow-auto">
-            {JSON.stringify(parsedContent, null, 2)}
-          </pre>
-        </ScrollArea>
-      </div>
-    );
   };
 
   const renderContent = () => {
@@ -275,47 +177,24 @@ export function ParsedContentViewer({ chatId, onClose }: ParsedContentViewerProp
       );
     }
     
+    // Only show raw content
     return (
-      <Tabs defaultValue="text" value={activeTab} onValueChange={setActiveTab}>
-        <div className="px-4 pt-4">
-          <TabsList className="grid grid-cols-4 w-full">
-            <TabsTrigger value="text" className="flex items-center">
-              <FileText className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Text</span>
-            </TabsTrigger>
-            <TabsTrigger value="structure" className="flex items-center">
-              <ListTree className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Structure</span>
-            </TabsTrigger>
-            <TabsTrigger value="info" className="flex items-center">
-              <Info className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Info</span>
-            </TabsTrigger>
-            <TabsTrigger value="raw" className="flex items-center">
-              <File className="h-4 w-4 mr-2" />
-              <span className="hidden sm:inline">Raw</span>
-            </TabsTrigger>
-          </TabsList>
-        </div>
-        
-        <ScrollArea className={`mt-2 ${expanded ? 'h-[70vh]' : 'h-[400px]'}`}>
-          <TabsContent value="text" className="p-4">
-            {getTextContent()}
-          </TabsContent>
-          
-          <TabsContent value="structure">
-            {getStructureContent()}
-          </TabsContent>
-          
-          <TabsContent value="info">
-            {getMetadataContent()}
-          </TabsContent>
-          
-          <TabsContent value="raw">
-            {getRawContent()}
-          </TabsContent>
+      <div className="relative">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => copyToClipboard(JSON.stringify(parsedContent, null, 2))}
+          className="absolute top-2 right-2 z-10"
+        >
+          <CopyIcon className="h-4 w-4 mr-1" />
+          Copy
+        </Button>
+        <ScrollArea className={`${expanded ? 'h-[70vh]' : 'h-[400px]'} w-full`}>
+          <pre className="p-4 text-xs font-mono whitespace-pre-wrap overflow-auto">
+            {JSON.stringify(parsedContent, null, 2)}
+          </pre>
         </ScrollArea>
-      </Tabs>
+      </div>
     );
   };
 
@@ -325,7 +204,7 @@ export function ParsedContentViewer({ chatId, onClose }: ParsedContentViewerProp
         <div>
           <CardTitle className="text-lg flex items-center">
             <File className="h-5 w-5 mr-2" />
-            Document Analysis
+            Document Raw Content
           </CardTitle>
           {metadata?.pageCount && (
             <CardDescription>
