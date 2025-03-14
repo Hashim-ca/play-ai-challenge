@@ -341,7 +341,7 @@ export default function ChatList({ onSelectChat }: ChatListProps) {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteChat}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90 text-white"
               disabled={deleteChatMutation.isPending}
             >
               {deleteChatMutation.isPending ? (

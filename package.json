@@ -1,6 +1,8 @@
 {
   "dependencies": {
     "@aws-sdk/s3-request-presigner": "^3.758.0",
+    "jspdf": "^3.0.0",
+    "pdfjs-dist": "^4.10.38",
     "uuidv4": "^6.2.13"
   }
 }

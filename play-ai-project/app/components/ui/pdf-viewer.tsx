@@ -304,7 +304,7 @@ export function PDFViewer({ url, chatId, isSplitView }: PDFViewerProps) {
                   <div className="p-4">
                     {selectedText ? (
                       <div className="prose prose-sm max-w-none">
-                        <div className="bg-muted rounded-lg p-4">
+                        <div className="bg-muted rounded-lg p-4 max-h-64 overflow-y-auto">
                           <h3 className="text-sm font-medium mb-2">Selected Text</h3>
                           <p className="whitespace-pre-wrap">{selectedText}</p>
                           <TextToSpeech 

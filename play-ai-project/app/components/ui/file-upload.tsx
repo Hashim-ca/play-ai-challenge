@@ -159,7 +159,6 @@ export function FileUpload({
       
       // Use dynamic import to load PDF.js only when needed
       const pdfjs = await import('pdfjs-dist');
-      // @ts-ignore - PDF.js types are not always recognized correctly
       const pdfjsLib = pdfjs.default;
       pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdfjs/pdf.worker.min.js';
       
@@ -175,7 +174,6 @@ export function FileUpload({
       }
       
       // Create a new PDF document
-      // @ts-ignore - PDF.js types are not always recognized correctly
       const { jsPDF } = await import('jspdf');
       const pdf = new jsPDF({
         orientation: 'portrait',

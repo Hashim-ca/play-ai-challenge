@@ -121,7 +121,7 @@ export function ProcessingOverlay({
       >
         {getContent()}
         
-        {!isBlocking && currentState !== 'processing' && (
+        {currentState !== 'processing' && (
           <div className="mt-6 flex justify-center">
             <button 
               className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"

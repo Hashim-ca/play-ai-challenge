@@ -5,7 +5,6 @@ import Chat from '@/lib/models/chat';
 import Message from '@/lib/models/message';
 
 // POST /api/chat/[id]/message - Send a message to the chat
-// @ts-ignore Next.js canary version has type issues with API route handlers
 export async function POST(
   request: NextRequest,
   context: { params: { id: string } }
@@ -50,7 +49,7 @@ export async function POST(
     // For now, we'll generate a response with PDF info if available
     let simulatedResponse = '';
     if (parsedPdf) {
-      simulatedResponse = `This is a simulated response to: "${message}" with PDF data from Reducto API.`;
+      simulatedResponse = `This is a simulated response to: "${message}" with PDF data.`;
       // Add job ID if available
       if (parsedPdf.job_id) {
         simulatedResponse += ` (Job ID: ${parsedPdf.job_id})`;
@@ -58,7 +57,7 @@ export async function POST(
     } else {
       simulatedResponse = `This is a simulated response to: "${message}"`;
       if (chat.pdfStorageUrl) {
-        simulatedResponse += " (PDF is still being processed by Reducto API)";
+        simulatedResponse += " (PDF is still being processed by AI)";
       }
     }
     

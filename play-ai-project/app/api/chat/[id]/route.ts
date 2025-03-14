@@ -4,7 +4,6 @@ import Chat from '@/lib/models/chat';
 import Message from '@/lib/models/message';
 
 // GET /api/chat/[id] - Get a specific chat by ID
-// @ts-ignore Next.js canary version has type issues with API route handlers
 export async function GET(
   request: NextRequest,
   context: { params: { id: string } }
@@ -44,7 +43,6 @@ export async function GET(
 }
 
 // PUT /api/chat/[id] - Update a chat
-// @ts-ignore Next.js canary version has type issues with API route handlers
 export async function PUT(
   request: NextRequest,
   context: { params: { id: string } }
@@ -80,7 +78,6 @@ export async function PUT(
 }
 
 // DELETE /api/chat/[id] - Delete a chat
-// @ts-ignore Next.js canary version has type issues with API route handlers
 export async function DELETE(
   request: NextRequest,
   context: { params: { id: string } }
